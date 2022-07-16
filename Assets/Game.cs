@@ -7,6 +7,7 @@ public enum tileID
 {
     empty,
     goal,
+    spawn,
     lazer
 }
 
@@ -38,6 +39,7 @@ public class Game : MonoBehaviour
     private float transitionDuration = 0.25f;
 
     public static System.Action<int> Tick;
+    public static System.Action<int> LateTick;
 
     private Stack<GameState> moves;
     private GameObject[,] tiles;
@@ -88,13 +90,18 @@ public class Game : MonoBehaviour
         {
             for(int y = 0; y < leveldata.height; y++)
             {
-
                 leveldata.data[x, y] = new Tiledata((int) tileID.empty, Direction.none, -1);
             }
         }
+        leveldata.data[0, 0] = new Tiledata(tileID.spawn, Direction.none, -1);
+        activePlayer.Pos = (0, 0);
 
-        leveldata.data[0, leveldata.width - 1] = new Tiledata(tileID.lazer, Direction.right, 2);
-        leveldata.data[leveldata.height - 1, leveldata.width - 1] = new Tiledata(tileID.goal, Direction.none, -1);
+        leveldata.data[0, leveldata.height - 1] = new Tiledata(tileID.lazer, Direction.right, 2);
+        leveldata.data[leveldata.width - 1, leveldata.height - 2] = new Tiledata(tileID.lazer, Direction.left, 2);
+        leveldata.data[leveldata.width - 1, 0] = new Tiledata(tileID.lazer, Direction.up, 2);
+        leveldata.data[4, leveldata.height - 1] = new Tiledata(tileID.lazer, Direction.down, 2);
+
+        leveldata.data[leveldata.width - 1, leveldata.height - 1] = new Tiledata(tileID.goal, Direction.none, -1);
 
         //Build level tiles
         for(int x = 0; x < leveldata.width; x++)
@@ -105,43 +112,47 @@ public class Game : MonoBehaviour
                 obj.transform.position = new Vector3(x, 0, y);
                 obj.transform.parent = parent.transform;
                 var thisTileData = leveldata.data[x, y];
-                var tileObject = tileObjects[thisTileData.id];
-
-                if(tileObject != null)
-                {
-                    var tile = Instantiate(tileObject);
-                    tile.transform.position = new Vector3(x, 1, y);
-                    float rotation = 0.0f;
-                    switch(thisTileData.direction)
+                if(tileObjects.ContainsKey(thisTileData.id))
+                { 
+                    var tileObject = tileObjects[thisTileData.id];
+                    if(tileObject != null)
                     {
-                        case Direction.up:
-                            rotation = 0.0f; 
-                            break;
-                        case Direction.right:
-                            rotation = 90.0f;
-                            break;
-                        case Direction.down:
-                            rotation = 180.0f;
-                            break;
-                        case Direction.left:
-                            rotation = 270.0f;
-                            break;
-                        default:
-                            break;
-                    }
-                    tile.transform.rotation = Quaternion.Euler(0, rotation, 0);
+                        var tile = Instantiate(tileObject);
+                        tile.transform.position = new Vector3(x, 1, y);
+                        float rotation = 0.0f;
+                        switch(thisTileData.direction)
+                        {
+                            case Direction.up:
+                                rotation = 0.0f; 
+                                break;
+                            case Direction.right:
+                                rotation = 90.0f;
+                                break;
+                            case Direction.down:
+                                rotation = 180.0f;
+                                break;
+                            case Direction.left:
+                                rotation = 270.0f;
+                                break;
+                            default:
+                                break;
+                        }
+                        tile.transform.rotation = Quaternion.Euler(0, rotation, 0);
 
-                    this.tiles[x, y] = tile;
-                    var tileScript = tile.GetComponent<Tile>();
-                    tileScript.Direction = thisTileData.direction;
-                    tileScript.ActivateNumber = thisTileData.activateNumber;
-                    //add number too
-                    if(thisTileData.activateNumber > 0 && thisTileData.activateNumber < 7)
-                    { 
-                        var number = Instantiate(numberObjects[thisTileData.activateNumber]);
-                        number.transform.position = new Vector3(x, Y, y);
-                        number.transform.rotation = Quaternion.Euler(90, 0, 0);
-                        tileNumbers[x, y] = number;
+                        this.tiles[x, y] = tile;
+                        //fill script tiledata from leveldata
+                        var tileScript = tile.GetComponent<Tile>();
+                        tileScript.Direction = thisTileData.direction;
+                        tileScript.ActivateNumber = thisTileData.activateNumber;
+                        tileScript.Position = (x, y);
+                        //add number too
+                        if(thisTileData.activateNumber > 0 && thisTileData.activateNumber < 7)
+                        { 
+                            var number = Instantiate(numberObjects[thisTileData.activateNumber]);
+                            number.transform.position = new Vector3(x, Y, y);
+                            number.transform.rotation = Quaternion.Euler(90, 0, 0);
+                            tileNumbers[x, y] = number;
+                        }
                     }
                 }
             }
@@ -216,19 +227,53 @@ public class Game : MonoBehaviour
 
     private IEnumerator Transition(Direction dir)
     {
+        transition = true;
         var newPos = Dir.Add(activePlayer.Pos, dir);
-        float y = tiles[newPos.Item1, newPos.Item2].GetComponent<Tile>().VerticalOffset;
+        var curTile = tiles[newPos.Item1, newPos.Item2];
+        float y = curTile == null ? 1 : 1 + curTile.GetComponent<Tile>().VerticalOffset;
+        Vector3 lerpStart = activePlayer.transform.position;
         Vector3 lerpTarget = new Vector3(newPos.Item1, y, newPos.Item2);
         Quaternion startRotation = activePlayer.transform.rotation;
-        Quaternion targetRotation = startRotation * Quaternion.Euler(Dir.Rotation90(dir)); //this might be wrong
+
+        Quaternion targetRotation = startRotation;
+
+        switch(dir)
+        {
+            case Direction.none:
+                break;
+            case Direction.up:
+                targetRotation = Quaternion.Euler(Vector3.right * 90) * targetRotation;
+                break;
+            case Direction.right:
+                targetRotation = Quaternion.Euler(Vector3.forward * -90) * targetRotation;
+                break;
+            case Direction.down:
+                targetRotation = Quaternion.Euler(Vector3.right * -90)  * targetRotation;
+                break;
+            case Direction.left:
+                targetRotation = Quaternion.Euler(Vector3.forward * 90) * targetRotation;
+                break;
+            default:
+                break;
+        }
         float timer = 0.0f;
+
+        activePlayer.RollDie(dir);
+        Tick.Invoke(activePlayer.Face);
+
         while(timer < transitionDuration)
         {
-
-
+            timer += Time.deltaTime;
+            activePlayer.transform.position = Vector3.Lerp(lerpStart, lerpTarget, timer/transitionDuration);
+            activePlayer.transform.rotation = Quaternion.Lerp(startRotation, targetRotation, timer/transitionDuration);
             yield return null;
         }
-        
+
+        activePlayer.Pos = newPos;
+        //todo fix
+        transition = false;
+        //latetick.invoke()
+
     }
 
     //returns true if collision or OOB, else false
@@ -239,7 +284,7 @@ public class Game : MonoBehaviour
         {
             return true;
         }
-        var curTile = tiles[pos.Item1, pos.Item2].GetComponent<Tile>();
+        var curTile = tiles[pos.Item1, pos.Item2]?.GetComponent<Tile>();
 
         if(curTile == null)
         {
@@ -249,5 +294,61 @@ public class Game : MonoBehaviour
         {
             return curTile.collision;
         }
+    }
+
+    public (int,int) GetCollision((int,int) position, Direction direction)
+    {
+        switch(direction)
+        {
+            case Direction.none:
+                Debug.LogError("GetCollision was passed an invalid direction");
+                return (-1, -1);
+            case Direction.up:
+                for(int y = position.Item2+1; y < leveldata.height; y++)
+                {
+                    var curTile = tiles[position.Item1, y];
+                    if(curTile == null) continue;
+                    if(curTile.GetComponent<Tile>().collision)
+                    {
+                        return (position.Item1, y);
+                    }
+                }
+                return (position.Item1, leveldata.height);
+            case Direction.right:
+                for(int x = position.Item1+1; x < leveldata.width; x++)
+                {
+                    var curTile = tiles[x, position.Item2];
+                    if(curTile == null) continue;
+                    if(curTile.GetComponent<Tile>().collision)
+                    {
+                        return (x, position.Item2);
+                    }
+                }
+                return (leveldata.width, position.Item2);
+            case Direction.down:
+                for(int y = position.Item2-1; y > -1; y--)
+                {
+                    var curTile = tiles[position.Item1, y];
+                    if(curTile == null) continue;
+                    if(curTile.GetComponent<Tile>().collision)
+                    {
+                        return (position.Item1, y);
+                    }
+                }
+                return (position.Item1, 0);
+            case Direction.left:
+                for(int x = position.Item1-1; x > -1; x--) 
+                {
+                    var curTile = tiles[x, position.Item2];
+                    if(curTile == null) continue;
+                    if(curTile.GetComponent<Tile>().collision)
+                    {
+                        return (x, position.Item2);
+                    }
+                }
+                return (0, position.Item2);
+        }
+
+        return (-1, -1);
     }
 }
