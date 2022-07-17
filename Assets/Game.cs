@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -13,7 +14,8 @@ public enum tileID
     lazer,
     block,
     levelDie,
-    pressurePlate
+    pressurePlate,
+    pressurePlatePlayer
 }
 
 public struct GameState
@@ -58,6 +60,8 @@ public class Game : MonoBehaviour
     [SerializeField] private AudioSource LevelCompleteSound;
     [SerializeField] private AudioSource GoalEnabledSound;
 
+    [SerializeField] public AudioSource PressurePlateSound;
+
     public static float transitionDuration = 0.25f;
 
     public static float normalDuration = 0.25f;
@@ -65,7 +69,7 @@ public class Game : MonoBehaviour
 
     public static System.Action<int> Tick;
     public static System.Action<int> LateTickEvent;
-    public static System.Action LevelCompleteEvent;
+    public static System.Action<bool,bool> LevelCompleteEvent;
 
     private Stack<GameState> moves = new Stack<GameState>();
 
@@ -85,8 +89,10 @@ public class Game : MonoBehaviour
     public static float tickTimer = 0.0f;
     private Levels levels;
 
-    private float camYOffset = 8.0f;
-    private float camZOffset = -7.5f;
+
+    //50 degrees, 8y, -7.5x
+    private float camYOffset = 9.5f;
+    private float camZOffset = -6.0f;
 
     private float levelTransitionDuration = 2.0f;
 
@@ -107,6 +113,10 @@ public class Game : MonoBehaviour
 
     private GameObject goalObject;
 
+    [SerializeField] private TextMeshProUGUI levelNameText;
+    [SerializeField] private TextMeshProUGUI diedHintText;
+
+    private bool transitionStarted = false;
     //the model I have is clockwise probably https://en.wikipedia.org/wiki/Dice#Construction
 
     // Start is called before the first frame update
@@ -122,6 +132,7 @@ public class Game : MonoBehaviour
         tileObjects[tileID.block] = Resources.Load("Prefabs/LevelCube") as GameObject;
         tileObjects[tileID.levelDie] = Resources.Load("Prefabs/LevelDie") as GameObject;
         tileObjects[tileID.pressurePlate] = Resources.Load("Prefabs/PressurePlate") as GameObject;
+        tileObjects[tileID.pressurePlatePlayer] = Resources.Load("Prefabs/PressurePlatePlayer") as GameObject;
 
         numberObjects["1"] = Resources.Load("Prefabs/number1") as GameObject;
         numberObjects["2"] = Resources.Load("Prefabs/number2") as GameObject;
@@ -135,7 +146,6 @@ public class Game : MonoBehaviour
         numberObjects["not4"] = Resources.Load("Prefabs/not4") as GameObject;
         numberObjects["not5"] = Resources.Load("Prefabs/not5") as GameObject;
         numberObjects["not6"] = Resources.Load("Prefabs/not6") as GameObject;
-
 
         players = GameObject.FindGameObjectsWithTag("Player");
         activePlayer = players[0].GetComponent<Player>();
@@ -152,6 +162,7 @@ public class Game : MonoBehaviour
         //add first gamestate
         GameState gs = new GameState(activePlayer.Pos, activePlayer.GetDie(), false, false,goalObject.activeSelf);
         moves.Push(gs);
+        levelNameText.text = "- " + leveldata.name + " -";
     }
 
     private void OnDestroy()
@@ -251,7 +262,8 @@ public class Game : MonoBehaviour
                         if(tileScript is PressurePlate)
                         {
                             pressurePlates.Add(tileScript as PressurePlate);
-                        }else if( tileScript is Goal)
+                        }
+                        else if(tileScript is Goal)
                         {
                             goalObject = tile;
                         }
@@ -310,8 +322,12 @@ public class Game : MonoBehaviour
         {
             //undo
             var gs = moves.Pop();
-            if(gs.died) { this.activePlayer.Dead = false; }
-            goalObject.SetActive(gs.goalActive);
+            if(gs.died) 
+            { 
+                this.activePlayer.Dead = false;
+                diedHintText.gameObject.SetActive(false);
+            }
+            goalObject.SetActive(moves.Peek().goalActive);
             //move
             lockingObject = this.gameObject;
             var offset = (moves.Peek().position.Item1 - gs.position.Item1,moves.Peek().position.Item2 - gs.position.Item2);
@@ -326,9 +342,23 @@ public class Game : MonoBehaviour
             return;
         }
 
+        //debug controls
+        if(Input.GetKeyDown(KeyCode.Equals))
+        {
+            LevelCompleteEvent.Invoke(true,true);
+        }
+        else if(Input.GetKeyDown(KeyCode.Minus))
+        {
+            LevelCompleteEvent.Invoke(false,true);
+        }
+        else if(Input.GetKeyDown(KeyCode.BackQuote))
+        {
+            RestartLevel();
+        }
+
         if(!activePlayer.Dead)
         { 
-            if(Input.GetKeyDown(KeyCode.W))
+            if(Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))
             {
                 SimulateMovement(Direction.up, false);
                 var newPos = Dir.Add(activePlayer.Pos, Direction.up);
@@ -338,7 +368,7 @@ public class Game : MonoBehaviour
                 }
                 return;
             }
-            else if(Input.GetKeyDown(KeyCode.A))
+            else if(Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow))
             {
                 SimulateMovement(Direction.left, false);
                 var newPos = Dir.Add(activePlayer.Pos, Direction.left);
@@ -348,7 +378,7 @@ public class Game : MonoBehaviour
                 }
                 return;
             }
-            else if (Input.GetKeyDown(KeyCode.S))
+            else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow))
             {
                 SimulateMovement(Direction.down, false);
                 var newPos = Dir.Add(activePlayer.Pos, Direction.down);
@@ -358,7 +388,7 @@ public class Game : MonoBehaviour
                 }
                 return;
             }
-            else if (Input.GetKeyDown(KeyCode.D))
+            else if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow))
             {
                 SimulateMovement(Direction.right, false);
                 var newPos = Dir.Add(activePlayer.Pos, Direction.right);
@@ -760,29 +790,59 @@ public class Game : MonoBehaviour
         var gs = moves.Pop();
         gs.died = true;
         moves.Push(gs);
+
+        diedHintText.gameObject.SetActive(true);
     }
 
-    private void LevelComplete()
+
+    private void RestartLevel()
     {
+        SceneManager.LoadScene(0, LoadSceneMode.Single);
+    }
+
+    private void LevelComplete(bool incrementLevel, bool fast = false)
+    {
+        if(transitionStarted) return;
+
         ConfettiEffect.SetActive(true);
-        Manager.currentLevel++;
+        if(incrementLevel)
+        {
+            Manager.currentLevel++;
+        }
+        else
+        {
+            Manager.currentLevel--;
+            if(Manager.currentLevel < 0) Manager.currentLevel = 0;
+        }
+        
         if(Manager.currentLevel >= levels.LevelCount)
         {
-
+            StartCoroutine(LevelTransition(1, fast));
+            LevelCompleteSound.Play();
+            transitionStarted = true;
+            return;
         }
-        StartCoroutine(LevelTransition());
+        StartCoroutine(LevelTransition(0, fast));
         LevelCompleteSound.Play();
-
+        transitionStarted = true;
     }
-    private IEnumerator LevelTransition()
+    private IEnumerator LevelTransition(int sceneIndex, bool fast = false)
     {
         float levelTransitionTimer = 0.0f;
-        while(levelTransitionTimer < levelTransitionDuration)
+        if(fast)
         {
-            levelTransitionTimer += Time.deltaTime;
-            yield return null;
+            SceneManager.LoadScene(sceneIndex, LoadSceneMode.Single);
         }
-        SceneManager.LoadScene(0, LoadSceneMode.Single);
+        else
+        { 
+            while(levelTransitionTimer < levelTransitionDuration)
+            {
+                levelTransitionTimer += Time.deltaTime;
+                yield return null;
+            }
+            SceneManager.LoadScene(sceneIndex, LoadSceneMode.Single);
+        }
+        
     }
 
 }

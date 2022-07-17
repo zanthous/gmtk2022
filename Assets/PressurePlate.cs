@@ -10,6 +10,11 @@ public class PressurePlate : Tile
 
     private bool on = false;
 
+    public bool levelDieOnly = true;
+
+    private bool previousValue = false;
+
+    private bool shouldPlay = false;
     public bool On
     {
         get { return on; }
@@ -19,42 +24,67 @@ public class PressurePlate : Tile
     {
         //need access to moveable
         var moveables = game.moveables;
-
-        on = false;
-        foreach(var m in moveables)
+        if(levelDieOnly)
         {
-            if(m.Item2 is LevelDie && m.Item2.Position == this.position)
+            on = false;
+            foreach(var m in moveables)
             {
-                if(DetermineActive((m.Item2 as LevelDie).Face))
+                if(m.Item2 is LevelDie && m.Item2.Position == this.position)
                 {
-                    on = true;
+                    if(DetermineActive((m.Item2 as LevelDie).Face))
+                    {
+                        on = true;
+                    }
                 }
             }
         }
-        //active = DetermineActive(dieFace);
+        else
+        {
+            on = false;
+            foreach(var m in moveables)
+            {
+                if(m.Item2 is LevelDie && m.Item2.Position == this.position)
+                {
+                    if(DetermineActive((m.Item2 as LevelDie).Face))
+                    {
+                        on = true;
+                    }
+                }
+            }
+            if(game.ActivePlayer.Pos == this.position && DetermineActive(game.ActivePlayer.Face))
+            {
+                on = true;
+            }
+        }
+        if(previousValue == false && on)
+        {
+            shouldPlay = true;
+            
+        }
+        previousValue = on;
     }
 
-    //private void LateTick(int dieFace)
-    //{
 
-    //}
-
-    // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
-        //Game.LateTickEvent += LateTick;
+        Game.LateTickEvent += LateTick;
     }
 
+    private void LateTick(int dieFace)
+    {
+        if(shouldPlay)
+        {
+            if(!game.PressurePlateSound.isPlaying)
+            {
+                game.PressurePlateSound.Play();
+            }
+            shouldPlay = false;
+        }
+    }
 
     private void OnDestroy()
     {
-        //Game.LateTickEvent -= LateTick;
+        Game.LateTickEvent -= LateTick;
         Game.Tick -= Tick;
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
     }
 }

@@ -28,7 +28,7 @@ public class Goal : Tile
         if(game.ActivePlayer.Pos == position && (goalActive || activateNumber == -1) && gameObject.activeSelf) 
         {
             game.lockingObject = gameObject;
-            Game.LevelCompleteEvent.Invoke();
+            Game.LevelCompleteEvent.Invoke(true,false);
         }
     }
 }
