@@ -5,6 +5,7 @@ using UnityEngine;
 //parent class for all tiles
 public abstract class Tile : MonoBehaviour
 {
+    public bool moves = false;
     public bool collision = true;
     public tileID tileID;
 
@@ -25,6 +26,15 @@ public abstract class Tile : MonoBehaviour
     protected float verticalOffset = 0.0f;
 
     protected (int, int) position;
+    protected int identifier;
+
+    protected Game game;
+
+    public int Identifier
+    {
+        get { return identifier; }
+        set { identifier = value; }
+    }
 
     public bool Even
     {
@@ -85,6 +95,8 @@ public abstract class Tile : MonoBehaviour
     private void Awake()
     {
         Game.Tick += Tick;
+
+        game = FindObjectOfType<Game>();
     }
 
     private void OnDestroy()

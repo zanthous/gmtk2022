@@ -7,21 +7,24 @@ public class LazerTurret : Tile
 
     [SerializeField] private GameObject lazer;
 
-    private Game game;
     //private Vector3 beamStartPosition;
     private (int, int) collisionLocation;
     private bool lazerActive = false;
     private Vector3 initialLazerLocalScale;
     private Vector3 initialLazerLocalPosition;
 
+    private float tickTimer = 0.0f;
+    private float transitionDuration = 0.25f;
+    private bool initialStartFinished = false;
+
     private void Start()
     {
         //beamStartPosition = lazer.transform.localPosition;
-        game = FindObjectOfType<Game>();
         Game.LateTickEvent += LateTick;
 
         initialLazerLocalScale = lazer.transform.localScale;
         initialLazerLocalPosition = lazer.transform.localPosition;
+        LazerStuff(game.ActivePlayer.Face);
     }
 
     private void OnDestroy()
@@ -33,10 +36,14 @@ public class LazerTurret : Tile
     //lazer will probably have to redraw on random ticks too
     public override void Tick(int dieFace)
     {
+        LazerStuff(dieFace);
+    }
+
+    private void LazerStuff(int dieFace)
+    {
         lazerActive = DetermineActive(dieFace);
         if(lazerActive)
         {
-            //do delayed or animate
             lazer.SetActive(true);
             //calculate lazer path 
             collisionLocation = game.GetCollision(position, direction);
@@ -71,12 +78,27 @@ public class LazerTurret : Tile
         var targetLocalScale = new Vector3(lazer.transform.localScale.x, distance, lazer.transform.localScale.z);
         var targetLocalPosition = new Vector3(0, transform.localPosition.y - 1.0f, distance) + initialLazerLocalPosition;
 
-        while(Game.tickTimer < Game.transitionDuration)
-        {
-            lazer.transform.localPosition = Vector3.Lerp(initialLazerLocalPosition, targetLocalPosition, Game.tickTimer / Game.transitionDuration);
-            lazer.transform.localScale = Vector3.Lerp(initialLazerLocalScale, targetLocalScale, Game.tickTimer / Game.transitionDuration);
+        if(initialStartFinished)
+        { 
+            while(Game.tickTimer < Game.transitionDuration)
+            {
+                lazer.transform.localPosition = Vector3.Lerp(initialLazerLocalPosition, targetLocalPosition, Game.tickTimer / Game.transitionDuration);
+                lazer.transform.localScale = Vector3.Lerp(initialLazerLocalScale, targetLocalScale, Game.tickTimer / Game.transitionDuration);
 
-            yield return null;
+                yield return null;
+            }
+        }
+        else
+        {
+            while(this.tickTimer < this.transitionDuration) 
+            {
+                this.tickTimer+= Time.deltaTime;
+                lazer.transform.localPosition = Vector3.Lerp(initialLazerLocalPosition, targetLocalPosition, this.tickTimer / this.transitionDuration);
+                lazer.transform.localScale = Vector3.Lerp(initialLazerLocalScale, targetLocalScale, this.tickTimer / this.transitionDuration);
+
+                yield return null;
+            }
+            initialStartFinished = true;
         }
     }
 

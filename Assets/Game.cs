@@ -11,7 +11,8 @@ public enum tileID
     goal,
     spawn,
     lazer,
-    block
+    block,
+    levelDie
 }
 
 public struct GameState
@@ -54,12 +55,18 @@ public class Game : MonoBehaviour
 
     public static float transitionDuration = 0.25f;
 
+    public static float normalDuration = 0.25f;
+    public static float undoDuration = 0.1f;
+
     public static System.Action<int> Tick;
     public static System.Action<int> LateTickEvent;
     public static System.Action LevelCompleteEvent;
 
     private Stack<GameState> moves = new Stack<GameState>();
+
     private GameObject[,] tiles;
+    private GameObject[,] tilesSimulation;
+
     private GameObject[,] tileNumbers;
     private GameObject[] players;
     private Dictionary<tileID, GameObject> tileObjects = new Dictionary<tileID, GameObject>();
@@ -81,7 +88,17 @@ public class Game : MonoBehaviour
     private Quaternion cameraStartQuaternion;
     private float cameraNudgeAngle = 1.0f;
 
+    private List<(GameObject, Tile)> moveables = new List<(GameObject, Tile)>();
+
+    private Dictionary<int, Stack<bool>> freezeMoveable = new Dictionary<int, Stack<bool>>();
+
+    private int nMoveable = 0;
+    private int identifierIndex = 0;
+
     [SerializeField] private AnimationCurve cameraNudgeCurve;
+
+    private List<int> movedIdentifiers = new List<int>();
+
     //the model I have is clockwise probably https://en.wikipedia.org/wiki/Dice#Construction
 
     // Start is called before the first frame update
@@ -95,6 +112,7 @@ public class Game : MonoBehaviour
         tileObjects[tileID.lazer] = Resources.Load("Prefabs/lazer") as GameObject;
         tileObjects[tileID.goal] = Resources.Load("Prefabs/goal") as GameObject;
         tileObjects[tileID.block] = Resources.Load("Prefabs/LevelCube") as GameObject;
+        tileObjects[tileID.levelDie] = Resources.Load("Prefabs/LevelDie") as GameObject;
 
         numberObjects["1"] = Resources.Load("Prefabs/number1") as GameObject;
         numberObjects["2"] = Resources.Load("Prefabs/number2") as GameObject;
@@ -113,27 +131,6 @@ public class Game : MonoBehaviour
         players = GameObject.FindGameObjectsWithTag("Player");
         activePlayer = players[0].GetComponent<Player>();
 
-        //debug leveldata
-        //leveldata.width = 10;
-        //leveldata.height = 10;
-        //leveldata.name = "cool level";
-        //leveldata.data = new Tiledata[leveldata.width, leveldata.height];  //fill test data
-        //for(int x = 0; x < leveldata.width; x++)
-        //{
-        //    for(int y = 0; y < leveldata.height; y++)
-        //    {
-        //        leveldata.data[x, y] = new Tiledata((int) tileID.empty, Direction.none, -1);
-        //    }
-        //}
-        //leveldata.data[0, 0] = new Tiledata(tileID.spawn, Direction.none, -1);
-
-        //leveldata.data[0, leveldata.height - 1] = new Tiledata(tileID.lazer, Direction.right, 2);
-        //leveldata.data[leveldata.width - 1, leveldata.height - 2] = new Tiledata(tileID.lazer, Direction.left, 2);
-        //leveldata.data[leveldata.width - 1, 0] = new Tiledata(tileID.lazer, Direction.up, 2);
-        //leveldata.data[4, leveldata.height - 1] = new Tiledata(tileID.lazer, Direction.down, 2);
-
-        //leveldata.data[leveldata.width - 1, leveldata.height - 1] = new Tiledata(tileID.goal, Direction.none, -1);
-
         levels = new Levels();
         levels.Init();
         LoadLevel(Manager.currentLevel);
@@ -146,8 +143,6 @@ public class Game : MonoBehaviour
         //add first gamestate
         GameState gs = new GameState(activePlayer.Pos, activePlayer.GetDie(), false, false);
         moves.Push(gs);
-
-
     }
 
     private void OnDestroy()
@@ -164,6 +159,7 @@ public class Game : MonoBehaviour
         leveldata = levels.GetLevel(levelIndex);
         //init arrays 
         tiles = new GameObject[leveldata.width, leveldata.height];
+        tilesSimulation = new GameObject[leveldata.width, leveldata.height];
         tileNumbers = new GameObject[leveldata.width, leveldata.height];
         //Build level tiles
         BuildLevelTiles(parent);
@@ -246,6 +242,13 @@ public class Game : MonoBehaviour
                         tileScript.Less = thisTileData.less;
                         tileScript.Greater = thisTileData.greater;
                         tileScript.Not = thisTileData.not;
+                        tileScript.Identifier = identifierIndex;
+                        identifierIndex++;
+                        if(tileScript.moves) 
+                        { 
+                            moveables.Add((tile, tileScript));
+                            freezeMoveable[tileScript.Identifier] = new Stack<bool>();
+                        }
 
                         //add number too
                         if(thisTileData.activateNumber < 7)
@@ -290,6 +293,8 @@ public class Game : MonoBehaviour
             lockingObject = this.gameObject;
             var offset = (moves.Peek().position.Item1 - gs.position.Item1,moves.Peek().position.Item2 - gs.position.Item2);
             var dir = Dir.dirTuple[offset];
+            SimulateMovement(dir, true); //hopefully works right
+            transitionDuration = undoDuration;
             StartCoroutine(Transition(dir, true));
         }
 
@@ -302,8 +307,9 @@ public class Game : MonoBehaviour
         { 
             if(Input.GetKeyDown(KeyCode.W))
             {
+                SimulateMovement(Direction.up, false);
                 var newPos = Dir.Add(activePlayer.Pos, Direction.up);
-                if(!CheckCollision(newPos))
+                if(!CheckCollision(newPos, ref tilesSimulation))
                 {
                     StartCoroutine(Transition(Direction.up, false));
                 }
@@ -311,8 +317,9 @@ public class Game : MonoBehaviour
             }
             else if(Input.GetKeyDown(KeyCode.A))
             {
+                SimulateMovement(Direction.left, false);
                 var newPos = Dir.Add(activePlayer.Pos, Direction.left);
-                if(!CheckCollision(newPos))
+                if(!CheckCollision(newPos,ref tilesSimulation))
                 {
                     StartCoroutine(Transition(Direction.left, false));
                 }
@@ -320,8 +327,9 @@ public class Game : MonoBehaviour
             }
             else if (Input.GetKeyDown(KeyCode.S))
             {
+                SimulateMovement(Direction.down, false);
                 var newPos = Dir.Add(activePlayer.Pos, Direction.down);
-                if(!CheckCollision(newPos))
+                if(!CheckCollision(newPos, ref tilesSimulation))
                 {
                     StartCoroutine(Transition(Direction.down, false));
                 }
@@ -329,8 +337,9 @@ public class Game : MonoBehaviour
             }
             else if (Input.GetKeyDown(KeyCode.D))
             {
+                SimulateMovement(Direction.right, false);
                 var newPos = Dir.Add(activePlayer.Pos, Direction.right);
-                if(!CheckCollision(newPos))
+                if(!CheckCollision(newPos, ref tilesSimulation))
                 {
                     StartCoroutine(Transition(Direction.right, false));
                 }
@@ -339,17 +348,166 @@ public class Game : MonoBehaviour
         }
     }
 
+    private void SimulateMovement(Direction dir, bool undo)
+    {
+        movedIdentifiers.Clear();
+
+        int uBound0 = tilesSimulation.GetUpperBound(0);
+        int uBound1 = tilesSimulation.GetUpperBound(1);
+
+        for(int i = 0; i <= uBound0; i++)
+        {
+            for(int j = 0; j <= uBound1; j++)
+            {
+                tilesSimulation[i, j] = tiles[i, j];
+            }
+        }
+
+        switch(dir)
+        {
+            case Direction.none:
+                Debug.LogError("invalid direction @ Game.Simulatemovement");
+                return;
+            case Direction.up:
+                //nothing at height-1 should move up
+                for(int y = leveldata.height - 2; y >-1 ; y--)
+                {
+                    for(int x = 0; x < leveldata.width; x++)
+                    {
+                        if(tiles[x,y] != null)
+                        {
+                            var scriptData = tiles[x, y].GetComponent<Tile>();
+
+                            if(scriptData.moves && undo && freezeMoveable[scriptData.Identifier].Peek()) continue;
+
+                            if(scriptData.moves && !CheckCollision((x,y+1), ref tilesSimulation))
+                            {
+                                tilesSimulation[x, y + 1] = tiles[x, y];
+                                tilesSimulation[x, y] = null;
+                                movedIdentifiers.Add(scriptData.Identifier);
+                            }
+                        }
+                    }
+                }
+                break;
+            case Direction.right:
+                for(int x = leveldata.width - 2; x > -1; x--)
+                {
+                    for(int y = 0; y < leveldata.height; y++)
+                    {
+                        if(tiles[x, y] != null)
+                        {
+                            var scriptData = tiles[x, y].GetComponent<Tile>();
+
+                            if(scriptData.moves && undo && freezeMoveable[scriptData.Identifier].Peek()) continue;
+
+                            if(scriptData.moves && !CheckCollision((x + 1, y), ref tilesSimulation))
+                            {
+                                tilesSimulation[x + 1, y] = tiles[x, y];
+                                tilesSimulation[x, y] = null;
+                                movedIdentifiers.Add(scriptData.Identifier);
+                            }
+                        }
+                    }
+                }
+                break;
+            case Direction.down:
+                for(int y = 1; y < leveldata.height; y++)
+                {
+                    for(int x = 0; x < leveldata.width; x++)
+                    {
+                        if(tiles[x, y] != null)
+                        {
+                            var scriptData = tiles[x, y].GetComponent<Tile>();
+
+                            if(scriptData.moves && undo && freezeMoveable[scriptData.Identifier].Peek()) continue;
+
+                            if(scriptData.moves && !CheckCollision((x, y - 1), ref tilesSimulation))
+                            {
+                                tilesSimulation[x, y - 1] = tiles[x, y];
+                                tilesSimulation[x, y] = null;
+                                movedIdentifiers.Add(scriptData.Identifier);
+                            }
+                        }
+                    }
+                }
+                break;
+            case Direction.left:
+                for(int x = 1; x < leveldata.width; x++)
+                {
+                    for(int y = 0; y < leveldata.height; y++)
+                    {
+                        if(tiles[x, y] != null)
+                        {
+                            var scriptData = tiles[x, y].GetComponent<Tile>();
+
+                            if(scriptData.moves && undo && freezeMoveable[scriptData.Identifier].Peek()) continue;
+
+                            if(scriptData.moves && !CheckCollision((x - 1, y), ref tilesSimulation))
+                            {
+                                tilesSimulation[x - 1, y] = tiles[x, y];
+                                tilesSimulation[x, y] = null;
+                                movedIdentifiers.Add(scriptData.Identifier);
+                            }
+                        }
+                    }
+                }
+                break;
+        }
+    }
+
     private IEnumerator Transition(Direction dir, bool undo)
     {
         transition = true;
-        var newPos = Dir.Add(activePlayer.Pos, dir);
-        var curTile = tiles[newPos.Item1, newPos.Item2];
-        float y = curTile == null ? 1 : 1 + curTile.GetComponent<Tile>().VerticalOffset;
+        float y = 1;
+        //float y = curTile == null ? 1 : 1 + curTile.GetComponent<Tile>().VerticalOffset; //unused
+
+        (int, int) newPos = Dir.Add(activePlayer.Pos, dir);
+        GameObject curTile = tiles[newPos.Item1, newPos.Item2];
+
         Vector3 lerpStart = activePlayer.transform.position;
         Vector3 lerpTarget = new Vector3(newPos.Item1, y, newPos.Item2);
         Quaternion startRotation = activePlayer.transform.rotation;
-        Quaternion targetRotation = startRotation;
+        Quaternion targetRotation = startRotation; // placeholder value / default
+        
         Quaternion cameraNudgedRotation = cameraStartQuaternion;
+
+        List<(int, int)> moveableNewPositions = new List<(int, int)>();
+        List<Vector3> moveableLerpStart = new List<Vector3>();
+        List<Vector3> moveableLerpTarget = new List<Vector3>();
+        List<Quaternion> moveableStartRotation = new List<Quaternion>();
+        List<Quaternion> moveableTargetRotation = new List<Quaternion>();
+        List<int> moveablesUsedIndices = new List<int>();
+
+        List<GameObject> moved = new List<GameObject>();
+
+        int index = 0;
+        for(int j = 0; j < moveables.Count; j++)
+        {
+            if(!movedIdentifiers.Contains(moveables[j].Item2.Identifier))
+            {
+                moved.Add(null);
+                if(!undo)
+                {
+                    freezeMoveable[moveables[j].Item2.Identifier].Push(true);
+                }
+            }
+            else 
+            {
+                if(!undo)
+                {
+                    freezeMoveable[moveables[j].Item2.Identifier].Push(false);
+                }
+                moveableNewPositions.Add(Dir.Add(moveables[j].Item2.Position, dir));
+                moveableLerpStart.Add(moveables[j].Item1.transform.position);
+                moveableLerpTarget.Add(new Vector3(moveableNewPositions[index].Item1, y, moveableNewPositions[index].Item2));
+                moveableStartRotation.Add(moveables[j].Item1.transform.rotation);
+                moveableTargetRotation.Add(moveableStartRotation[index]);  // placeholder value / default
+                moved.Add(moveables[j].Item1);
+                (moveables[j].Item2 as LevelDie).RollDie(dir); //todo if more moveable types exist this has to change-W
+                index++;
+            }
+        }
 
         switch(dir)
         {
@@ -357,18 +515,34 @@ public class Game : MonoBehaviour
                 break;
             case Direction.up:
                 targetRotation = Quaternion.Euler(Vector3.right * 90) * targetRotation;
+                for(int i = 0; i < moveableTargetRotation.Count; i++)
+                {
+                    moveableTargetRotation[i] = Quaternion.Euler(Vector3.right * 90) * moveableTargetRotation[i];
+                }
                 cameraNudgedRotation = Quaternion.Euler(Vector3.right * -cameraNudgeAngle) * cameraStartQuaternion;
                 break;
             case Direction.right:
                 targetRotation = Quaternion.Euler(Vector3.forward * -90) * targetRotation;
+                for(int i = 0; i < moveableTargetRotation.Count; i++)
+                {
+                    moveableTargetRotation[i] = Quaternion.Euler(Vector3.forward * -90) * moveableTargetRotation[i];
+                }
                 cameraNudgedRotation = Quaternion.Euler(Vector3.forward * cameraNudgeAngle) * cameraStartQuaternion;
                 break;
             case Direction.down:
                 targetRotation = Quaternion.Euler(Vector3.right * -90) * targetRotation;
+                for(int i = 0; i < moveableTargetRotation.Count; i++)
+                {
+                    moveableTargetRotation[i] = Quaternion.Euler(Vector3.right * -90) * moveableTargetRotation[i];
+                }
                 cameraNudgedRotation = Quaternion.Euler(Vector3.right * cameraNudgeAngle) * cameraStartQuaternion;
                 break;
             case Direction.left:
                 targetRotation = Quaternion.Euler(Vector3.forward * 90) * targetRotation;
+                for(int i = 0; i < moveableTargetRotation.Count; i++)
+                {
+                    moveableTargetRotation[i] = Quaternion.Euler(Vector3.forward * 90) * moveableTargetRotation[i];
+                }
                 cameraNudgedRotation = Quaternion.Euler(Vector3.forward * -cameraNudgeAngle) * cameraStartQuaternion;
                 break;
             default:
@@ -378,6 +552,29 @@ public class Game : MonoBehaviour
         tickTimer = 0.0f;
 
         activePlayer.RollDie(dir);
+
+        activePlayer.Pos = newPos;
+        //set moveables new positions
+        int z = 0;
+        for(int i = 0; i < moved.Count; i++)
+        {
+            if(moved[i] == null) continue;
+            moved[i].GetComponent<Tile>().Position = moveableNewPositions[z];
+            z++;
+        }
+
+        //copy simulated movements into tile to finalize
+        int uBound0 = tiles.GetUpperBound(0);
+        int uBound1 = tiles.GetUpperBound(1);
+        for(int i = 0; i <= uBound0; i++)
+        {
+            for(int j = 0; j <= uBound1; j++)
+            {
+                tiles[i, j] = tilesSimulation[i, j];
+            }
+        }
+
+
         Tick.Invoke(activePlayer.Face);
 
         while(tickTimer < transitionDuration)
@@ -385,11 +582,33 @@ public class Game : MonoBehaviour
             tickTimer += Time.deltaTime;
             activePlayer.transform.position = Vector3.Lerp(lerpStart, lerpTarget, tickTimer / transitionDuration);
             activePlayer.transform.rotation = Quaternion.Lerp(startRotation, targetRotation, tickTimer / transitionDuration);
+
+            int k = 0;
+            for(int j = 0; j < moved.Count; j++)
+            {
+                if(moved[j] == null)
+                {
+                    continue;
+                }
+
+                moved[j].transform.position = Vector3.Lerp(moveableLerpStart[k], moveableLerpTarget[k], tickTimer / transitionDuration);
+                moved[j].transform.rotation = Quaternion.Lerp(moveableStartRotation[k], moveableTargetRotation[k], tickTimer/ transitionDuration);
+                k++;
+            }
+
             camera.transform.rotation = Quaternion.Lerp(cameraNudgedRotation, cameraStartQuaternion, cameraNudgeCurve.Evaluate(tickTimer / transitionDuration));
             yield return null;
         }
 
-        activePlayer.Pos = newPos;
+        if(undo)
+        {
+            for(int i = 0; i < moveables.Count; i++)
+            {
+                freezeMoveable[moveables[i].Item2.Identifier].Pop();
+            }
+            transitionDuration = normalDuration;
+        }
+
         //todo change if forced movement added
         if(!undo)
         { 
@@ -419,14 +638,15 @@ public class Game : MonoBehaviour
     }
 
     //returns true if collision or OOB, else false
-    private bool CheckCollision((int, int) pos)
+    private bool CheckCollision((int, int) pos, ref GameObject[,] dataSource)
     {
         if(pos.Item1 < 0 || pos.Item2 < 0 ||
             pos.Item1 > leveldata.width - 1 || pos.Item2 > leveldata.height - 1)
         {
             return true;
         }
-        var curTile = tiles[pos.Item1, pos.Item2]?.GetComponent<Tile>();
+
+        var curTile = dataSource[pos.Item1, pos.Item2]?.GetComponent<Tile>();
 
         if(curTile == null)
         {

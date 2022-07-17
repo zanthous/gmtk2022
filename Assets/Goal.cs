@@ -5,7 +5,6 @@ using UnityEngine;
 public class Goal : Tile
 {
     private bool goalActive = false;
-    private Game game;
 
     private void Start()
     {
