@@ -7,9 +7,11 @@ public class Levels
 
     private Leveldata[] levels;
 
+    public int LevelCount { get { return levels.Length; } }
+
     private Dictionary<int, int> indexToLevel = new Dictionary<int, int>()
     {
-        {0, 9},
+        {0, 2},
         //{0, 2},
         {1, 3},
         {2, 0},
@@ -18,7 +20,8 @@ public class Levels
         {5, 5},
         {6, 6},
         {7,7 },
-        {8,8}
+        {8,8},
+        {9,9}
     };
 
     public Leveldata GetLevel(int index)
@@ -65,9 +68,13 @@ public class Levels
         levels[7].width = 7;
         levels[7].height = 8;
 
-        levels[8].name = "surrounded2";
+        levels[8].name = "Junction";
         levels[8].width = 5;
         levels[8].height = 6;
+
+        levels[9].name = "Happy 3rd anniversary ‚Ø‚±‚ç!!";
+        levels[9].width = 7;
+        levels[9].height = 7; 
 
 
         //fill blank tiles
@@ -83,7 +90,7 @@ public class Levels
             }
         }
 
-        //level obstacles
+        //level obstacles, sometimes the combination not:true and -1 are used to mean any number is valid
         //level 0
         levels[0].data[2, 0] = new Tiledata(tileID.spawn, Direction.none, -1);
         levels[0].data[2, levels[0].height - 1] = new Tiledata(tileID.goal, Direction.none, 2);
@@ -260,8 +267,37 @@ public class Levels
         levels[8].data[2, 4] = new Tiledata(tileID.levelDie, Direction.none, -1);
         levels[8].data[3, 4] = new Tiledata(tileID.block, Direction.none, -1);
 
-        
-        
+        //level 9
+        levels[9].data[0, 3] = new Tiledata(tileID.goal, Direction.none, 3);
+        levels[9].data[6, 3] = new Tiledata(tileID.spawn, Direction.none, -1);
+
+        //levels[9].data[0, 0] = new Tiledata(tileID.block, Direction.none, -1);
+
+        levels[9].data[1, 1] = new Tiledata(tileID.block, Direction.none, -1);
+        levels[9].data[2, 1] = new Tiledata(tileID.block, Direction.none, -1);
+        levels[9].data[3, 1] = new Tiledata(tileID.block, Direction.none, -1);
+        levels[9].data[6, 1] = new Tiledata(tileID.block, Direction.none, -1);
+
+        levels[9].data[3, 2] = new Tiledata(tileID.block, Direction.none, -1);
+
+        levels[9].data[1, 3] = new Tiledata(tileID.block, Direction.none, -1);
+        levels[9].data[2, 3] = new Tiledata(tileID.block, Direction.none, -1);
+        levels[9].data[3, 3] = new Tiledata(tileID.block, Direction.none, -1);
+
+        levels[9].data[3, 4] = new Tiledata(tileID.block, Direction.none, -1);
+
+        levels[9].data[1, 5] = new Tiledata(tileID.block, Direction.none, -1);
+        levels[9].data[2, 5] = new Tiledata(tileID.block, Direction.none, -1);
+        levels[9].data[3, 5] = new Tiledata(tileID.block, Direction.none, -1);
+        levels[9].data[6, 5] = new Tiledata(tileID.block, Direction.none, -1);
+
+        levels[9].data[2, 2] = new Tiledata(tileID.levelDie, Direction.none, -1);
+        levels[9].data[2, 4] = new Tiledata(tileID.levelDie, Direction.none, -1);
+
+        levels[9].data[6, 2] = new Tiledata(tileID.pressurePlate, Direction.none, -1, not: true);
+        levels[9].data[6, 4] = new Tiledata(tileID.pressurePlate, Direction.none, -1, not: true);
+
+
 
     }
 }

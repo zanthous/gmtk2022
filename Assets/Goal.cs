@@ -25,7 +25,7 @@ public class Goal : Tile
 
     private void LateTick(int dieFace)
     {
-        if(game.ActivePlayer.Pos == position && (goalActive || activateNumber == -1)) 
+        if(game.ActivePlayer.Pos == position && (goalActive || activateNumber == -1) && gameObject.activeSelf) 
         {
             game.lockingObject = gameObject;
             Game.LevelCompleteEvent.Invoke();

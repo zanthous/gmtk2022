@@ -12,7 +12,8 @@ public enum tileID
     spawn,
     lazer,
     block,
-    levelDie
+    levelDie,
+    pressurePlate
 }
 
 public struct GameState
@@ -21,12 +22,15 @@ public struct GameState
     public int[] dieLayout; 
     public bool forcedMove;
     public bool died;
-    public GameState(System.ValueTuple<int, int> position, int[] dieLayout, bool forcedMove, bool died)
+    public bool goalActive;
+
+    public GameState(System.ValueTuple<int, int> position, int[] dieLayout, bool forcedMove, bool died, bool goalActive)
     {
         this.position = position;
         this.dieLayout = dieLayout;
         this.forcedMove = forcedMove;
         this.died = died;
+        this.goalActive = goalActive;
     }
 }
 
@@ -52,6 +56,7 @@ public class Game : MonoBehaviour
     [SerializeField] private GameObject ConfettiEffect;
     [SerializeField] private AudioSource MoveSound;
     [SerializeField] private AudioSource LevelCompleteSound;
+    [SerializeField] private AudioSource GoalEnabledSound;
 
     public static float transitionDuration = 0.25f;
 
@@ -83,21 +88,24 @@ public class Game : MonoBehaviour
     private float camYOffset = 8.0f;
     private float camZOffset = -7.5f;
 
-    private float levelTransitionDuration = 1.5f;
+    private float levelTransitionDuration = 2.0f;
 
     private Quaternion cameraStartQuaternion;
     private float cameraNudgeAngle = 1.0f;
 
-    private List<(GameObject, Tile)> moveables = new List<(GameObject, Tile)>();
+    public List<(GameObject, Tile)> moveables = new List<(GameObject, Tile)>();
 
     private Dictionary<int, Stack<bool>> freezeMoveable = new Dictionary<int, Stack<bool>>();
 
-    private int nMoveable = 0;
     private int identifierIndex = 0;
 
     [SerializeField] private AnimationCurve cameraNudgeCurve;
 
     private List<int> movedIdentifiers = new List<int>();
+
+    private List<PressurePlate> pressurePlates = new List<PressurePlate>();
+
+    private GameObject goalObject;
 
     //the model I have is clockwise probably https://en.wikipedia.org/wiki/Dice#Construction
 
@@ -113,6 +121,7 @@ public class Game : MonoBehaviour
         tileObjects[tileID.goal] = Resources.Load("Prefabs/goal") as GameObject;
         tileObjects[tileID.block] = Resources.Load("Prefabs/LevelCube") as GameObject;
         tileObjects[tileID.levelDie] = Resources.Load("Prefabs/LevelDie") as GameObject;
+        tileObjects[tileID.pressurePlate] = Resources.Load("Prefabs/PressurePlate") as GameObject;
 
         numberObjects["1"] = Resources.Load("Prefabs/number1") as GameObject;
         numberObjects["2"] = Resources.Load("Prefabs/number2") as GameObject;
@@ -141,7 +150,7 @@ public class Game : MonoBehaviour
         cameraStartQuaternion = camera.transform.rotation;
         ConfettiEffect.transform.position = new Vector3(camera.transform.position.x, camera.transform.position.y, camera.transform.position.z + 5.0f);
         //add first gamestate
-        GameState gs = new GameState(activePlayer.Pos, activePlayer.GetDie(), false, false);
+        GameState gs = new GameState(activePlayer.Pos, activePlayer.GetDie(), false, false,goalObject.activeSelf);
         moves.Push(gs);
     }
 
@@ -165,6 +174,11 @@ public class Game : MonoBehaviour
         BuildLevelTiles(parent);
         //build walls
         BuildWalls(parent);
+
+        if(pressurePlates.Count > 0)
+        {
+            goalObject.SetActive(false);
+        }
     }
 
     private void BuildWalls(GameObject parent)
@@ -234,6 +248,14 @@ public class Game : MonoBehaviour
                         //fill script tiledata from leveldata
                         var tileScript = tile.GetComponent<Tile>();
 
+                        if(tileScript is PressurePlate)
+                        {
+                            pressurePlates.Add(tileScript as PressurePlate);
+                        }else if( tileScript is Goal)
+                        {
+                            goalObject = tile;
+                        }
+
                         tileScript.Direction = thisTileData.direction;
                         tileScript.ActivateNumber = thisTileData.activateNumber;
                         tileScript.Position = (x, y);
@@ -289,6 +311,7 @@ public class Game : MonoBehaviour
             //undo
             var gs = moves.Pop();
             if(gs.died) { this.activePlayer.Dead = false; }
+            goalObject.SetActive(gs.goalActive);
             //move
             lockingObject = this.gameObject;
             var offset = (moves.Peek().position.Item1 - gs.position.Item1,moves.Peek().position.Item2 - gs.position.Item2);
@@ -577,6 +600,24 @@ public class Game : MonoBehaviour
 
         Tick.Invoke(activePlayer.Face);
 
+        if(pressurePlates.Count > 0 && goalObject.activeSelf == false)
+        {
+            bool allOn = true;
+
+            foreach(var p in pressurePlates)
+            {
+                if(!p.On)
+                {
+                    allOn = false;
+                }
+            }
+            if(allOn)
+            {
+                GoalEnabledSound.Play();
+                goalObject.SetActive(true);
+            }
+        }
+
         while(tickTimer < transitionDuration)
         {
             tickTimer += Time.deltaTime;
@@ -612,7 +653,7 @@ public class Game : MonoBehaviour
         //todo change if forced movement added
         if(!undo)
         { 
-            GameState gs = new GameState(activePlayer.Pos, activePlayer.GetDie(), false, false);
+            GameState gs = new GameState(activePlayer.Pos, activePlayer.GetDie(), false, false,goalObject.activeSelf);
             moves.Push(gs);
         }
         else
@@ -725,6 +766,10 @@ public class Game : MonoBehaviour
     {
         ConfettiEffect.SetActive(true);
         Manager.currentLevel++;
+        if(Manager.currentLevel >= levels.LevelCount)
+        {
+
+        }
         StartCoroutine(LevelTransition());
         LevelCompleteSound.Play();
 
