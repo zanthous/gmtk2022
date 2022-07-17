@@ -26,6 +26,41 @@ public abstract class Tile : MonoBehaviour
 
     protected (int, int) position;
 
+    public bool Even
+    {
+        get { return even; }
+        set { even = value; }
+    }
+
+    public bool Odd
+    {
+        get { return odd; } 
+        set { odd = value; }
+    }
+
+    public bool Less
+    {
+        get { return less; }
+        set { less = value; }
+    }
+    public bool Greater
+    {
+        get { return greater; }
+        set
+        {
+            greater = value;
+        }   
+    }
+
+    public bool Not
+    {
+        get { return not; }
+        set
+        {
+            not = value;
+        }
+    }
+
     public (int, int) Position
     {
         get { return position; }
@@ -50,6 +85,11 @@ public abstract class Tile : MonoBehaviour
     private void Awake()
     {
         Game.Tick += Tick;
+    }
+
+    private void OnDestroy()
+    {
+        Game.Tick -= Tick;
     }
 
     public bool DetermineActive(int dieFace)

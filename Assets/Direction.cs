@@ -27,6 +27,15 @@ public static class Dir
             { Direction.left,  new ValueTuple<int, int>(-1,0) }
     };
 
+    public static Dictionary<ValueTuple<int, int>, Direction> dirTuple =
+        new Dictionary<ValueTuple<int, int>, Direction>()
+    {
+            {new ValueTuple<int, int>(0,0) ,  Direction.none},
+            {new ValueTuple<int, int>(0,1) ,  Direction.up },
+            {new ValueTuple<int, int>(1,0) ,  Direction.right},
+            {new ValueTuple<int, int>(0,-1),  Direction.down },
+            {new ValueTuple<int, int>(-1,0),  Direction.left }
+    };
 
     public static int Y(Direction d)
     {
@@ -78,14 +87,14 @@ public static class Dir
     /// Avoid boxing with custom comparer for enums
     /// </summary>
     public class DirectionComparer : IEqualityComparer<Direction>
-{
-    public bool Equals(Direction x, Direction y)
     {
-        return x == y;
+        public bool Equals(Direction x, Direction y)
+        {
+            return x == y;
+        }
+        public int GetHashCode(Direction x)
+        {
+            return (int) x;
+        }
     }
-    public int GetHashCode(Direction x)
-    {
-        return (int) x;
-    }
-}
 }

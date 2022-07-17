@@ -4,8 +4,32 @@ using UnityEngine;
 
 public class Goal : Tile
 {
+    private bool goalActive = false;
+    private Game game;
+
+    private void Start()
+    {
+        Game.LateTickEvent += LateTick;
+        game = FindObjectOfType<Game>();
+    }
+
+    private void OnDestroy()
+    {
+        Game.LateTickEvent -= LateTick;
+        Game.Tick -= Tick;
+    }
+
     public override void Tick(int dieFace)
     {
-        
+        goalActive = DetermineActive(dieFace);
+    }
+
+    private void LateTick(int dieFace)
+    {
+        if(game.ActivePlayer.Pos == position && (goalActive || activateNumber == -1)) 
+        {
+            game.lockingObject = gameObject;
+            Game.LevelCompleteEvent.Invoke();
+        }
     }
 }

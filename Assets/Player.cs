@@ -10,8 +10,23 @@ public class Player : MonoBehaviour
     private int backNumber;
 
     private ValueTuple<int, int> pos;
-
     public bool active = false;
+
+    public static Action DieEvent;
+
+    private Renderer renderer;
+    private Material mat;
+
+    private bool dead = false;
+    public bool Dead { 
+        get { return dead; }
+        set
+        {
+            dead = value;
+            renderer.gameObject.SetActive(!dead);
+        }
+
+    }
 
     private void Awake()
     {
@@ -19,6 +34,13 @@ public class Player : MonoBehaviour
         dieVertical = new int[3] { 2, 1, 5 }; //front/face/behind
         dieHorizontal = new int[3] { 4, 1, 3 }; //left/face/right
         backNumber = 6;
+        DieEvent += Die;
+        renderer = GetComponentInChildren<Renderer>();
+    }
+
+    private void OnDestroy()
+    {
+        DieEvent -= Die;
     }
 
     public int Face
@@ -31,6 +53,35 @@ public class Player : MonoBehaviour
         get { return pos; }
         set { pos = value; }
     }
+
+    public int[] GetDie()
+    {
+        int[] dieFaces = new int[] {
+            dieVertical[0], dieVertical[1], dieVertical[2],
+            dieHorizontal[0], dieHorizontal[1], dieHorizontal[2],
+            backNumber
+        };
+        return dieFaces;
+    }
+
+    public void SetDie(int[] dieFaces)
+    {
+        if(dieFaces.Length != 7)
+        {
+            Debug.LogError("Player.SetDie wrong length");
+            return;
+        }
+
+        dieVertical[0] = dieFaces[0];
+        dieVertical[1] = dieFaces[1];
+        dieVertical[2] = dieFaces[2];
+        dieHorizontal[0] = dieFaces[4];
+        dieHorizontal[1] = dieFaces[5];
+        dieHorizontal[2] = dieFaces[6];
+        backNumber = dieFaces[7];
+    }
+
+
     public void RollDie(Direction dir)
     {
         if(dieVertical.Length != 3 || dieHorizontal.Length != 3)
@@ -74,6 +125,12 @@ public class Player : MonoBehaviour
                 dieVertical[1] = dieHorizontal[1];
                 break;
         }
+    }
+
+    private void Die()
+    {
+        Dead = true;
+        //play die animation / sfx
     }
 
     //public void RollDie(ref int[] vert, ref int[] hor, ref int back, Direction dir)
