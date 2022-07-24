@@ -92,7 +92,7 @@ GameObject:
   - component: {fileID: 1782714358165246457}
   - component: {fileID: 925235880289460448}
   m_Layer: 0
-  m_Name: Turret
+  m_Name: lazer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -136,8 +136,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bbace2147e5dda347970a29ba9e8d217, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  entityID: 8
+  moves: 0
   collision: 1
-  tileID: 3
   lazer: {fileID: 2378991932201451180}
 --- !u!1 &1663329129461730965
 GameObject:

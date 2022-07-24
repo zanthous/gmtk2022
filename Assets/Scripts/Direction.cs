@@ -17,24 +17,24 @@ public enum Direction
 /// </summary>
 public static class Dir
 {
-    public static Dictionary<Direction, ValueTuple<int, int>> dir =
-        new Dictionary<Direction, ValueTuple<int, int>>(new DirectionComparer())
-    {
-            { Direction.none,  new ValueTuple<int, int>(0,0) },
-            { Direction.up,    new ValueTuple<int, int>(0,1) },
-            { Direction.right, new ValueTuple<int, int>(1,0) },
-            { Direction.down,  new ValueTuple<int, int>(0,-1) },
-            { Direction.left,  new ValueTuple<int, int>(-1,0) }
+    public static Dictionary<Direction, (int, int)> dir =
+        new Dictionary<Direction, (int, int)>(new DirectionComparer())
+    {                                     
+            { Direction.none,  (0,0) },
+            { Direction.up,    (0,1) },
+            { Direction.right, (1,0) },
+            { Direction.down,  (0,-1) },
+            { Direction.left,  (-1,0) }
     };
 
-    public static Dictionary<ValueTuple<int, int>, Direction> dirTuple =
-        new Dictionary<ValueTuple<int, int>, Direction>()
+    public static Dictionary<(int, int), Direction> dirTuple =
+        new Dictionary<(int, int), Direction>()
     {
-            {new ValueTuple<int, int>(0,0) ,  Direction.none},
-            {new ValueTuple<int, int>(0,1) ,  Direction.up },
-            {new ValueTuple<int, int>(1,0) ,  Direction.right},
-            {new ValueTuple<int, int>(0,-1),  Direction.down },
-            {new ValueTuple<int, int>(-1,0),  Direction.left }
+            {(0,0) ,  Direction.none},
+            {(0,1) ,  Direction.up },
+            {(1,0) ,  Direction.right},
+            {(0,-1),  Direction.down },
+            {(-1,0),  Direction.left }
     };
 
     public static int Y(Direction d)
@@ -51,15 +51,15 @@ public static class Dir
         pos.x += dir[direction].Item1;
         pos.y += dir[direction].Item2;
     }
-    public static void Add(ref ValueTuple<int, int> pos, Direction direction)
+    public static void Add(ref(int, int)pos, Direction direction)
     {
         pos.Item1 += dir[direction].Item1;
         pos.Item2 += dir[direction].Item2;
     }
 
-    public static ValueTuple<int,int> Add(ValueTuple<int, int> pos, Direction direction)
+    public static ValueTuple<int,int> Add((int, int) pos, Direction direction)
     {
-        ValueTuple<int, int> result;
+       (int, int)result;
         result.Item1 = pos.Item1 + dir[direction].Item1;
         result.Item2 = pos.Item2 + dir[direction].Item2;
         return result;

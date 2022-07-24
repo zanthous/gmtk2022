@@ -4,6 +4,11 @@ using UnityEngine;
 
 public class LazerTurret : Tile
 {
+    struct LazerTurretState
+    {
+        public (int, int) collisionLocation;
+        public bool lazerActive;
+    }
 
     [SerializeField] private GameObject lazer;
 
@@ -13,40 +18,36 @@ public class LazerTurret : Tile
     private Vector3 initialLazerLocalScale;
     private Vector3 initialLazerLocalPosition;
 
+    //since there is no tick at the start of the game, and the lazer playing is after a tick, I had to simulate a tick
+    //I should do something to improve this (ex. game wide initial/start tick or just tick at game start)
     private float tickTimer = 0.0f;
-    private float transitionDuration = 0.25f;
+    private float transitionDuration = Game.normalDuration;
     private bool initialStartFinished = false;
+
+    private Stack<LazerTurretState> lazerTurretStates = new Stack<LazerTurretState>();
 
     private void Start()
     {
-        //beamStartPosition = lazer.transform.localPosition;
-        Game.LateTickEvent += LateTick;
-
         initialLazerLocalScale = lazer.transform.localScale;
         initialLazerLocalPosition = lazer.transform.localPosition;
         LazerStuff(game.ActivePlayer.Face);
-    }
-
-    private void OnDestroy()
-    {
-        Game.LateTickEvent -= LateTick;
-        Game.Tick -= Tick;
+        AddCurrentState();
     }
 
     //lazer will probably have to redraw on random ticks too
-    public override void Tick(int dieFace)
+    public override void Tick(int dieFace, Direction direction)
     {
         LazerStuff(dieFace);
     }
 
     private void LazerStuff(int dieFace)
     {
-        lazerActive = DetermineActive(dieFace);
+        lazerActive = DetermineFaceMatch(dieFace);
         if(lazerActive)
         {
             lazer.SetActive(true);
             //calculate lazer path 
-            collisionLocation = game.GetCollision(position, direction);
+            collisionLocation = game.GetCollision(Pos, pointingDirection, (int?)EntityID.player);
             //play lazer animation
             StartCoroutine(ExtendLazer());
         }
@@ -58,8 +59,9 @@ public class LazerTurret : Tile
         }
     }
 
-    private void LateTick(int dieFace)
+    public override void LateTick(int dieFace)
     {
+        AddCurrentState();
         if(!lazerActive) return;
         var hitsPlayer = HitsPlayer();
         if(hitsPlayer)
@@ -68,9 +70,30 @@ public class LazerTurret : Tile
         }
     }
 
+    public override void Undo()
+    {
+        lazerTurretStates.Pop();
+        this.lazerActive = lazerTurretStates.Peek().lazerActive;
+        this.collisionLocation= lazerTurretStates.Peek().collisionLocation;
+
+        if(!lazerActive)
+        { 
+            lazer.transform.localPosition = initialLazerLocalPosition;
+            lazer.transform.localScale = initialLazerLocalScale;
+            lazer.SetActive(false);
+        }
+        else
+        {
+            lazer.SetActive(true);
+
+            StartCoroutine(ExtendLazer());
+        }
+        
+    }
+
     private IEnumerator ExtendLazer()
     {
-        var vectorToCollision = (position.Item1 - collisionLocation.Item1, position.Item2 - collisionLocation.Item2);
+        var vectorToCollision = (Pos.Item1 - collisionLocation.Item1, Pos.Item2 - collisionLocation.Item2);
 
         //one of them will always be 0 so just get the value stupidly
         float distance = Mathf.Abs(vectorToCollision.Item1 + vectorToCollision.Item2);
@@ -104,14 +127,14 @@ public class LazerTurret : Tile
 
     private bool HitsPlayer()
     {
-        switch(direction)
+        switch(pointingDirection)
         {
             case Direction.none:
                 return false;
             case Direction.up:
                 if(collisionLocation.Item1 == game.ActivePlayer.Pos.Item1 &&
                     collisionLocation.Item2 > game.ActivePlayer.Pos.Item2 && 
-                    game.ActivePlayer.Pos.Item2 > this.position.Item2)
+                    game.ActivePlayer.Pos.Item2 > this.Pos.Item2)
                 {
                     return true;
                 }
@@ -119,7 +142,7 @@ public class LazerTurret : Tile
             case Direction.right:
                 if(collisionLocation.Item2 == game.ActivePlayer.Pos.Item2 &&
                     collisionLocation.Item1 > game.ActivePlayer.Pos.Item1 &&
-                    game.ActivePlayer.Pos.Item1 > this.position.Item1)
+                    game.ActivePlayer.Pos.Item1 > this.Pos.Item1)
                 {
                     return true;
                 }
@@ -127,7 +150,7 @@ public class LazerTurret : Tile
             case Direction.down:
                 if(collisionLocation.Item1 == game.ActivePlayer.Pos.Item1 &&
                     collisionLocation.Item2 < game.ActivePlayer.Pos.Item2 &&
-                    game.ActivePlayer.Pos.Item2 < this.position.Item2)
+                    game.ActivePlayer.Pos.Item2 < this.Pos.Item2)
                 {
                     return true;
                 }
@@ -135,12 +158,20 @@ public class LazerTurret : Tile
             case Direction.left:
                 if(collisionLocation.Item2 == game.ActivePlayer.Pos.Item2 &&
                     collisionLocation.Item1 < game.ActivePlayer.Pos.Item1 &&
-                    game.ActivePlayer.Pos.Item1 < this.position.Item1)
+                    game.ActivePlayer.Pos.Item1 < this.Pos.Item1)
                 {
                     return true;
                 }
                 return false;
         }
         return false;
+    }
+
+    public override void AddCurrentState()
+    {
+        LazerTurretState lazerTurretState = new LazerTurretState();
+        lazerTurretState.collisionLocation = collisionLocation;
+        lazerTurretState.lazerActive = lazerActive;
+        lazerTurretStates.Push(lazerTurretState);
     }
 }

@@ -108,5 +108,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ce5e3805d3bf3894993e7160c084d5c0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  entityID: 16
+  moves: 0
   collision: 1
-  tileID: 0

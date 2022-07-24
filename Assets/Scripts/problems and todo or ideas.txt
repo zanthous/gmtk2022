@@ -1,0 +1,22 @@
+﻿-Game.Transition logic needs to be broken out into tick, latetick and undo actions
+-objects should store their own stack of states, and pop when the undo action is called
+
+-player and leveldie share die code
+-make generic class -> that they will both have an instance of 
+
+-player undo logic in game should be moved to player
+
+[[[[[[]]]]]] Entities are not getting moved in the entity array on undo
+
+Ideas seen in other games:
+Slippery/sliding
+changing die faces to different values
+rotation blocks
+
+original ideas:
+Leveldie that has mirrored movement on the grid from playerdie, allow mirroring across each axis
+gate shaped like this ト　
+spawner that spawns something after x ticks
+gate that gets destroyed after x ticks
+
+

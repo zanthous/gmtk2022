@@ -486,7 +486,7 @@ GameObject:
   - component: {fileID: 6449301923478198459}
   - component: {fileID: 6449301923478198458}
   m_Layer: 0
-  m_Name: PressurePlateParent
+  m_Name: PressurePlate
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -523,6 +523,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6455541886557f74fb68733dd394a5e0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  entityID: 64
   moves: 0
   collision: 0
-  tileID: 6
+  levelDieOnly: 1

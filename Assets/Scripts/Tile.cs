@@ -3,11 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 //parent class for all tiles
-public abstract class Tile : MonoBehaviour
+public abstract class Tile : Entity
 {
-    public bool moves = false;
-    public bool collision = true;
-    public tileID tileID;
 
     //this
     protected bool even = false;
@@ -22,19 +19,8 @@ public abstract class Tile : MonoBehaviour
 
     protected bool not = false;
 
-    protected Direction direction = Direction.none;
+    protected Direction pointingDirection = Direction.none;
     protected float verticalOffset = 0.0f;
-
-    protected (int, int) position;
-    protected int identifier;
-
-    protected Game game;
-
-    public int Identifier
-    {
-        get { return identifier; }
-        set { identifier = value; }
-    }
 
     public bool Even
     {
@@ -71,15 +57,10 @@ public abstract class Tile : MonoBehaviour
         }
     }
 
-    public (int, int) Position
-    {
-        get { return position; }
-        set { position = value; }
-    }
     public Direction Direction
     {
-        get { return direction; }
-        set { direction = value; }
+        get { return pointingDirection; }
+        set { pointingDirection = value; }
     }
     public int ActivateNumber
     {
@@ -91,20 +72,8 @@ public abstract class Tile : MonoBehaviour
     {
         get { return verticalOffset; }
     }
-
-    private void Awake()
-    {
-        Game.Tick += Tick;
-
-        game = FindObjectOfType<Game>();
-    }
-
-    private void OnDestroy()
-    {
-        Game.Tick -= Tick;
-    }
-
-    public bool DetermineActive(int dieFace)
+    
+    public bool DetermineFaceMatch(int dieFace)
     {
         if(even && dieFace % 2 == 0) return true;
         if(odd && dieFace % 2 == 1) return true;
@@ -115,6 +84,4 @@ public abstract class Tile : MonoBehaviour
 
         return false;
     }
-
-    public abstract void Tick(int dieFace);
 }

@@ -8,7 +8,7 @@
 
 public struct Tiledata
 {
-    public tileID id;
+    public EntityID id;
     public Direction direction;
     public int activateNumber;
     public bool even;
@@ -18,7 +18,7 @@ public struct Tiledata
     public bool not;
 
 
-    public Tiledata(tileID id, Direction direction, int activateNumber, 
+    public Tiledata(EntityID id, Direction direction, int activateNumber, 
         bool even = false, bool odd = false, bool less = false, bool greater = false, bool not = false)
     {
         this.id = id;

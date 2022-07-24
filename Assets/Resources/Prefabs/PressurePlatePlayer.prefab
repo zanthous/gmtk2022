@@ -523,7 +523,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6455541886557f74fb68733dd394a5e0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  entityID: 128
   moves: 0
   collision: 0
-  tileID: 6
   levelDieOnly: 0
