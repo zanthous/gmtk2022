@@ -14,11 +14,27 @@ public class Player : Entity, IMoveable, IHasDie
 
     public Die die;
     public bool active = false;
+    public bool indicatorsActive = false;
 
     public static Action DieEvent;
 
     private new Renderer renderer;
     private Stack<PlayerState> playerStates = new Stack<PlayerState>();
+
+    [SerializeField] GameObject leftIndicator;
+    [SerializeField] GameObject rightIndicator;
+    [SerializeField] GameObject backIndicator;
+
+    private Dictionary<int, Sprite> indicatorSprites = new Dictionary<int, Sprite>();
+    private GameObject camera;
+
+    private Vector3 leftIndicatorStartPos;
+    private Vector3 rightIndicatorStartPos;
+    private Vector3 backIndicatorStartPos;
+
+    private SpriteRenderer leftRenderer;
+    private SpriteRenderer rightRenderer;
+    private SpriteRenderer backRenderer;
 
     public int Face
     {
@@ -41,10 +57,18 @@ public class Player : Entity, IMoveable, IHasDie
     public Quaternion LerpTargetRotation { get; set; }
     public bool ShouldMove { get; set; }
 
+    Vector3 cameraLookAt;
+
     public override void Awake()
     {
         base.Awake();
         DieEvent += Die_;
+        indicatorSprites.Add(1,Resources.Load<Sprite>("1"));
+        indicatorSprites.Add(2,Resources.Load<Sprite>("2"));
+        indicatorSprites.Add(3,Resources.Load<Sprite>("3"));
+        indicatorSprites.Add(4,Resources.Load<Sprite>("4"));
+        indicatorSprites.Add(5,Resources.Load<Sprite>("5"));
+        indicatorSprites.Add(6,Resources.Load<Sprite>("6"));
     }
 
     public override void OnDestroy()
@@ -60,6 +84,18 @@ public class Player : Entity, IMoveable, IHasDie
         TickRotation = transform.rotation;
         die = new Die();
         AddCurrentState();
+        camera = FindObjectOfType<Camera>().gameObject;
+
+        cameraLookAt = camera.transform.position;
+        cameraLookAt += camera.transform.forward * 10.0f;
+
+        leftIndicatorStartPos = leftIndicator.transform.position;
+        rightIndicatorStartPos = rightIndicator.transform.position;
+        backIndicatorStartPos = backIndicator.transform.position;
+
+        leftRenderer = leftIndicator.GetComponent<SpriteRenderer>();
+        rightRenderer = rightIndicator.GetComponent<SpriteRenderer>();
+        backRenderer = backIndicator.GetComponent<SpriteRenderer>();
     }
 
 
@@ -106,6 +142,10 @@ public class Player : Entity, IMoveable, IHasDie
         (int, int) newPos = tx.newPos;
         CalculateTarget(newPos, dir);
         die.RollDie(dir);
+        leftRenderer.sprite = indicatorSprites[die.horizontal[0]];
+        rightRenderer.sprite = indicatorSprites[die.vertical[0]];
+        backRenderer.sprite = indicatorSprites[die.back];
+
         Pos = newPos;
     }
 
@@ -113,7 +153,6 @@ public class Player : Entity, IMoveable, IHasDie
     {
         //add gamestate stuff
         AddCurrentState();
-
     }
 
     public override void Undo()
@@ -131,7 +170,32 @@ public class Player : Entity, IMoveable, IHasDie
             game.diedHintText.gameObject.SetActive(false);
         }
         die.SetDie(playerStates.Peek().dieFaces);
+        leftIndicator.GetComponent<SpriteRenderer>().sprite = indicatorSprites[die.horizontal[0]];
+        rightIndicator.GetComponent<SpriteRenderer>().sprite = indicatorSprites[die.vertical[0]];
+        backIndicator.GetComponent<SpriteRenderer>().sprite = indicatorSprites[die.back];
         CalculateTarget(Pos, Dir.dirTuple[(Pos.Item1 - previousPos.Item1, Pos.Item2 - previousPos.Item2)]);
+    }
+
+    private void Update()
+    {
+        leftIndicator.SetActive(indicatorsActive);
+        backIndicator.SetActive(indicatorsActive);
+        rightIndicator.SetActive(indicatorsActive);
+
+
+        cameraLookAt = camera.transform.position;
+        cameraLookAt += camera.transform.forward * 10.0f;
+
+        leftIndicator.transform.position =  cameraLookAt + leftIndicatorStartPos;
+        rightIndicator.transform.position = cameraLookAt + rightIndicatorStartPos;
+        backIndicator.transform.position =  cameraLookAt + backIndicatorStartPos;
+
+        if(indicatorsActive)
+        {
+            leftIndicator.transform.LookAt(camera.transform.position);
+            rightIndicator.transform.LookAt(camera.transform.position);
+            backIndicator.transform.LookAt(camera.transform.position);
+        }
     }
 
     public override void AddCurrentState()
@@ -145,7 +209,7 @@ public class Player : Entity, IMoveable, IHasDie
 
     public void LerpMove()
     {
-        transform.position = Vector3.Lerp(TickPosition, LerpTargetPosition, Game.tickTimer / Game.transitionDuration);
-        transform.rotation = Quaternion.Lerp(TickRotation, LerpTargetRotation, Game.tickTimer / Game.transitionDuration);
+        transform.position = Vector3.Lerp(TickPosition, LerpTargetPosition, Mathf.Clamp(Game.tickTimer / Game.transitionDuration,0,1.0f));
+        transform.rotation = Quaternion.Lerp(TickRotation, LerpTargetRotation, Mathf.Clamp(Game.tickTimer / Game.transitionDuration, 0, 1.0f));
     }
 }

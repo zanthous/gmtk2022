@@ -3,7 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using TMPro;
+using UnityEditor;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 
 public enum EntityID
@@ -17,7 +19,8 @@ public enum EntityID
     levelDie            = 0b00000000_00000000_00000000_00100000,
     pressurePlate       = 0b00000000_00000000_00000000_01000000,
     pressurePlatePlayer = 0b00000000_00000000_00000000_10000000,
-    player              = 0b00000000_00000000_00000001_00000000
+    player              = 0b00000000_00000000_00000001_00000000,
+    hole                = 0b00000000_00000000_00000010_00000000
 }
 
 public struct GameState
@@ -71,10 +74,10 @@ public class Game : MonoBehaviour
     public static System.Action UndoEvent;
     public static System.Action<bool, bool> LevelCompleteEvent;
 
-    public static float transitionDuration = 0.18f;
-    public const float normalDuration = 0.18f;
+    public static float transitionDuration = 0.15f;
+    public const float normalDuration = 0.15f;
     public const float undoDuration = 0.1f;
-
+    private const float cameraDefaultSize = 5.0f;
     public static float tickTimer = 0.0f;
 
     public List<IMoveable> moveablesNew = new List<IMoveable>();
@@ -99,8 +102,13 @@ public class Game : MonoBehaviour
     private Levels levels;
 
     //50 degrees, 8y, -7.5x
-    private float camYOffset = 9.5f;
-    private float camZOffset = -6.0f;
+    //private float camYOffset = 9.5f;
+    //private float camZOffset = -6.0f;
+    [SerializeField] float camYOffset = 3.5f;
+    [SerializeField] float camZOffset = 3.5f;
+    [SerializeField] float camXOffset = 3.5f;
+    //each level can have a specific camera offset, hacky but good enough for a gamejam game
+    private float cameraLevelOffset = 0.0f;
 
     private float levelTransitionDuration = 2.0f;
 
@@ -127,8 +135,13 @@ public class Game : MonoBehaviour
     public Dictionary<int, Transaction> transactions = new Dictionary<int, Transaction>();
 
     private bool cameraNudgeEnabled = false;
+    private float levelBlockHeight = -24.5f;
 
-    
+    //CombineMeshes 
+    bool[,] meshVisited;
+
+    [SerializeField] GameObject postProcessVolume;
+
     //the model I have is clockwise probably https://en.wikipedia.org/wiki/Dice#Construction
 
     // Start is called before the first frame update
@@ -145,6 +158,7 @@ public class Game : MonoBehaviour
         tileObjects[EntityID.levelDie] = Resources.Load("Prefabs/LevelDie") as GameObject;
         tileObjects[EntityID.pressurePlate] = Resources.Load("Prefabs/PressurePlate") as GameObject;
         tileObjects[EntityID.pressurePlatePlayer] = Resources.Load("Prefabs/PressurePlatePlayer") as GameObject;
+        tileObjects[EntityID.hole] = Resources.Load("Prefabs/hole") as GameObject;
 
         numberObjects["1"] = Resources.Load("Prefabs/number1") as GameObject;
         numberObjects["2"] = Resources.Load("Prefabs/number2") as GameObject;
@@ -167,8 +181,8 @@ public class Game : MonoBehaviour
         LoadLevel(Manager.currentLevel);
 
         //set camera position
-        var levelCenter = (leveldata.width / 2.0f, leveldata.height / 2.0f);
-        camera.transform.position = new Vector3(levelCenter.Item1 - .5f , camYOffset, levelCenter.Item2 + camZOffset);
+        //var levelCenter = (leveldata.width / 2.0f, leveldata.height / 2.0f);
+        SetCameraPosition();
         cameraStartQuaternion = camera.transform.rotation;
         ConfettiEffect.transform.position = new Vector3(camera.transform.position.x, camera.transform.position.y, camera.transform.position.z + 5.0f);
         levelNameText.text = "- " + leveldata.name + " -";
@@ -178,12 +192,22 @@ public class Game : MonoBehaviour
         activePlayer.Identifier = 0;
     }
 
+    private void SetCameraPosition()
+    {
+        camera.transform.position = new Vector3(
+            activePlayer.transform.position.x + camXOffset + leveldata.cameraVerticalOffset, 
+            camYOffset, 
+            activePlayer.transform.position.z + camZOffset - leveldata.cameraVerticalOffset);
+    }
+
     private void OnDestroy()
     {
         LevelCompleteEvent -= LevelComplete;
         Player.DieEvent -= PlayerDied;
         LateTickEvent -= LateTick;
     }
+
+    #region [===LoadLevel===]
 
     private void LoadLevel(int levelIndex)
     {
@@ -197,28 +221,17 @@ public class Game : MonoBehaviour
         tileNumbers = new GameObject[leveldata.width, leveldata.height];
         //Build level tiles
         BuildLevelTiles(parent);
+
+        CombineMeshes();
         //build walls
-        BuildWalls(parent);
-    }
-
-    private void BuildWalls(GameObject parent)
-    {
-        for(int x = -1; x <= leveldata.width; x++)
+        //BuildWalls(parent);
+        if(leveldata.cameraSize != 0)
         {
-            var obj = Instantiate(wall);
-            obj.transform.position = new Vector3(x, 0.5f, leveldata.height);
-            obj.transform.parent = parent.transform;
+            camera.GetComponent<Camera>().orthographicSize = leveldata.cameraSize;
         }
-        for(int y = 0; y < leveldata.height; y++)
+        else
         {
-            var obj1 = Instantiate(wall);
-            var obj2 = Instantiate(wall);
-
-            obj1.transform.position = new Vector3(-1, 0.5f, y);
-            obj1.transform.parent = parent.transform;
-
-            obj2.transform.position = new Vector3(leveldata.width, 0.5f, y);
-            obj2.transform.parent = parent.transform;
+            camera.GetComponent<Camera>().orthographicSize = cameraDefaultSize;
         }
     }
 
@@ -228,18 +241,23 @@ public class Game : MonoBehaviour
         {
             for(int y = 0; y < leveldata.height; y++)
             {
-                var obj = Instantiate(baseTile);
-                obj.transform.position = new Vector3(x, 0, y);
-                obj.transform.parent = parent.transform;
                 var thisTileData = leveldata.data[x, y];
-                if(thisTileData.id == EntityID.spawn)
+
+                if(thisTileData.entityID != EntityID.hole)
+                {
+                    var obj = Instantiate(baseTile);
+                    obj.transform.position = new Vector3(x, levelBlockHeight, y);
+                    obj.transform.parent = parent.transform;
+                }
+
+                if(thisTileData.entityID == EntityID.spawn)
                 {
                     activePlayer.Pos = (x, y);
                     activePlayer.transform.position = new Vector3(x, 1, y);
                 }
-                if(tileObjects.ContainsKey(thisTileData.id))
+                if(tileObjects.ContainsKey(thisTileData.entityID))
                 {
-                    var tileObject = tileObjects[thisTileData.id];
+                    var tileObject = tileObjects[thisTileData.entityID];
                     if(tileObject != null)
                     {
                         var tile = Instantiate(tileObject);
@@ -312,7 +330,7 @@ public class Game : MonoBehaviour
                         {
                             pressurePlates.Add(pressurePlate);
                         }
-                        else if(goal != null) 
+                        else if(goal != null)
                         {
                             goalObject = tile;
                             goalObjectNumber = tileNumbers[x, y];
@@ -327,17 +345,163 @@ public class Game : MonoBehaviour
         {
             for(int j = 0; j <= entities.GetUpperBound(1); j++)
             {
-                if(entities[i,j] != null)
-                { 
+                if(entities[i, j] != null)
+                {
                     entitiesDict.Add(entities[i, j].Identifier, entities[i, j]);
                 }
             }
         }
     }
 
+
+    #region [---MeshCombine---]
+    void CombineMeshes()
+    {
+        List<List<GameObject>> groups = new List<List<GameObject>>();
+        meshVisited = new bool[leveldata.width, leveldata.height];
+
+        for(int y = 0; y < leveldata.height; y++)
+        {
+            for(int x = 0; x < leveldata.width; x++)
+            {
+                if(leveldata.data[x,y].entityID == EntityID.block && !meshVisited[x,y])
+                {
+                    groups.Add(MakeGroup(x, y));
+                }
+            }
+        }
+
+        List<List<MeshFilter>> meshfilters = new List<List<MeshFilter>>();
+        for(int i = 0; i < groups.Count; i++)
+        {
+            List<MeshFilter> curGroup = new List<MeshFilter>();
+            for(int j = 0; j < groups[i].Count; j++)
+            {
+                curGroup.Add(groups[i][j].GetComponent<MeshFilter>());
+            }
+            CombineInstance[] combine = new CombineInstance[curGroup.Count];
+            int x = 0;
+            while(x < curGroup.Count)
+            {
+                combine[x].mesh = curGroup[x].sharedMesh;
+                combine[x].transform = curGroup[x].transform.localToWorldMatrix;
+                curGroup[x].gameObject.SetActive(false);
+                x++;
+            }
+            if(x > 0) 
+            { 
+                var newObj = new GameObject("Mesh " + i.ToString());
+                var filter = newObj.AddComponent<MeshFilter>();
+                var renderer = newObj.AddComponent<MeshRenderer>();
+                filter.mesh = new Mesh();
+                filter.mesh.CombineMeshes(combine, true);
+                renderer.sharedMaterial = tileObjects[EntityID.block].GetComponent<MeshRenderer>().sharedMaterial;
+            }
+        }
+    }
+
+    List<GameObject> MakeGroup(int x, int y)
+    {
+        List<GameObject> group = new List<GameObject>();
+        group.Add(entities[x, y].gameObject);
+        meshVisited[x, y] = true;
+
+        while(true)
+        {
+
+            if(x - 1 > -1)
+            {
+                GameObject left = meshVisited[x - 1, y] ? null : GetEntityObjectIfBlock(x - 1, y);
+                if(left)
+                {
+                    meshVisited[x - 1, y] = true;
+                    group.Add(left);
+                    x--;
+                    continue;
+                }
+            }
+            if(y + 1 < leveldata.height)
+            {
+                GameObject up = meshVisited[x, y + 1] ? null : GetEntityObjectIfBlock(x, y + 1);
+                if(up)
+                {
+                    meshVisited[x, y + 1] = true;
+                    group.Add(up);
+                    y++;
+                    continue;
+                }
+            }
+            if(x + 1 < leveldata.width)
+            {
+                GameObject right = meshVisited[x + 1, y] ? null : GetEntityObjectIfBlock(x + 1, y);
+                if(right)
+                {
+                    meshVisited[x + 1, y] = true;
+                    group.Add(right);
+                    x++;
+                    continue;
+                }
+            }
+            if(y - 1 > -1)
+            {
+                GameObject down = meshVisited[x, y - 1] ? null : GetEntityObjectIfBlock(x, y - 1);
+                if(down)
+                {
+                    meshVisited[x, y - 1] = true;
+                    group.Add(down);
+                    y--;
+                    continue;
+                }
+            }
+            break;
+        }
+
+
+        return group;
+    }
+
+    GameObject GetEntityObjectIfBlock(int x, int y)
+    {
+        if(x < 0) return null;
+        if(x > leveldata.width - 1) return null;
+        if(y < 0) return null;
+        if(y > leveldata.height - 1) return null;
+
+        var result = entities[x, y];
+        if(result && result.entityID == EntityID.block) return result.gameObject;
+        return null;
+
+    }
+    #endregion [---MeshCombine---]
+
+    private void BuildWalls(GameObject parent)
+    {
+        for(int x = -1; x <= leveldata.width; x++)
+        {
+            var obj = Instantiate(wall);
+            obj.transform.position = new Vector3(x, 0.5f, leveldata.height);
+            obj.transform.parent = parent.transform;
+        }
+        for(int y = 0; y < leveldata.height; y++)
+        {
+            var obj1 = Instantiate(wall);
+            var obj2 = Instantiate(wall);
+
+            obj1.transform.position = new Vector3(-1, 0.5f, y);
+            obj1.transform.parent = parent.transform;
+
+            obj2.transform.position = new Vector3(leveldata.width, 0.5f, y);
+            obj2.transform.parent = parent.transform;
+        }
+    }
+    #endregion [===LoadLevel===]
+
     // Update is called once per frame
     void Update()
     {
+        activePlayer.indicatorsActive = Input.GetKey(KeyCode.Space);
+        SetCameraPosition();
+
         if(inTransition)
         {
             return;
@@ -352,19 +516,22 @@ public class Game : MonoBehaviour
             StartCoroutine(Undo());
         }
 
-
         //debug controls
-        if(Input.GetKeyDown(KeyCode.Equals))
+        if(Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.Alpha0))
         {
-            LevelCompleteEvent.Invoke(true,true);
+            LevelCompleteEvent.Invoke(true, true);
         }
-        else if(Input.GetKeyDown(KeyCode.Minus))
+        else if(Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.Alpha9))
         {
-            LevelCompleteEvent.Invoke(false,true);
+            LevelCompleteEvent.Invoke(false, true);
         }
-        else if(Input.GetKeyDown(KeyCode.BackQuote))
+        else if(Input.GetKeyDown(KeyCode.BackQuote) || Input.GetKeyDown(KeyCode.Alpha6))
         {
             RestartLevel();
+        }
+        else if(Input.GetKeyDown(KeyCode.B)) 
+        {
+            postProcessVolume.SetActive(!postProcessVolume.activeSelf);
         }
 
         if(!activePlayer.Dead)
@@ -663,7 +830,7 @@ public class Game : MonoBehaviour
         //todo fix?
         inTransition = false;
         LateTickEvent.Invoke(activePlayer.Face);
-        camera.transform.rotation = cameraStartQuaternion;
+        //camera.transform.rotation = cameraStartQuaternion;
     }
 
     //enable goal if all on and play sound
@@ -712,6 +879,8 @@ public class Game : MonoBehaviour
     }
 
     //returns true if collision or OOB, else false
+    //Warning: does work with lazers (holes return collision as true, but a lazer sho uld not hit it)
+    //in reality collision / walkable should be two separate properties
     private bool CheckCollision((int, int) pos, ref Entity[,] dataSource)
     {
         if(pos.Item1 < 0 || pos.Item2 < 0 ||
@@ -728,6 +897,7 @@ public class Game : MonoBehaviour
         }
         else
         {
+            if(curTile.entityID == EntityID.hole) return true;
             return curTile.collision;
         }
     }
