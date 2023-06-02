@@ -6,14 +6,14 @@ using UnityEngine;
 public abstract class Tile : Entity
 {
 
-    //this
+    //Either one of these
     protected bool even = false;
     protected bool odd = false;
 
     //or this
     protected int activateNumber = -1;
 
-    //with modifiers
+    //with one of these modifiers
     protected bool less = false;
     protected bool greater = false;
 

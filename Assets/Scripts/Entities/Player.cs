@@ -26,7 +26,7 @@ public class Player : Entity, IMoveable, IHasDie
     [SerializeField] GameObject backIndicator;
 
     private Dictionary<int, Sprite> indicatorSprites = new Dictionary<int, Sprite>();
-    private GameObject camera;
+    private new GameObject camera;
 
     private Vector3 leftIndicatorStartPos;
     private Vector3 rightIndicatorStartPos;

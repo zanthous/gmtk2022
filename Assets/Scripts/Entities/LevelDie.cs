@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+//These are additional dice on the level that move with the player's main die
 public class LevelDie : Tile, IMoveable, IHasDie
 {
     struct LevelDieState
@@ -24,6 +25,7 @@ public class LevelDie : Tile, IMoveable, IHasDie
     }
 
     private Stack<LevelDieState> levelDieStates = new Stack<LevelDieState>();
+    
 
     private void Start()
     {
@@ -72,7 +74,6 @@ public class LevelDie : Tile, IMoveable, IHasDie
 
     public void CalculateTarget((int, int) newPos, Direction dir)
     {
-        //1 is just the base vertical offset for obstacles, this may change
         LerpTargetPosition = new Vector3(newPos.Item1, 1, newPos.Item2);
         LerpTargetRotation = TickRotation;
         switch(dir)

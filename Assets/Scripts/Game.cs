@@ -43,106 +43,74 @@ public struct GameState
 
 public struct Transaction
 {
-    public int entityID;//todo fill out
+    public int entityID;
     public (int, int) move;
     public (int, int) newPos;
 }
 
 public class Game : MonoBehaviour
 {
-
-    private const float numberYOffset = 0.53f;
-
-    [SerializeField] private GameObject baseTile;
-    [SerializeField] private GameObject wall;
-    [SerializeField] private new GameObject camera;
-
-    [SerializeField] private GameObject ConfettiEffect;
-    [SerializeField] private AudioSource MoveSound;
-    [SerializeField] private AudioSource LevelCompleteSound;
-    [SerializeField] private AudioSource GoalEnabledSound;
-    [SerializeField] public AudioSource PressurePlateSound;
-
-    [SerializeField] private AnimationCurve cameraNudgeCurve;
-
-    [SerializeField] private TextMeshProUGUI levelNameText;
-    [SerializeField] public TextMeshProUGUI diedHintText;
-
-    //todo see which of these can be removed (int, direction etc)
     public static System.Action<int, Direction> TickEvent;
     public static System.Action<int> LateTickEvent;
     public static System.Action UndoEvent;
     public static System.Action<bool, bool> LevelCompleteEvent;
 
-    public static float transitionDuration = 0.15f;
     public const float normalDuration = 0.15f;
     public const float undoDuration = 0.1f;
-    private const float cameraDefaultSize = 5.0f;
+    public static float transitionDuration = 0.15f;
     public static float tickTimer = 0.0f;
-
+    
+    public Dictionary<int, Transaction> transactions = new Dictionary<int, Transaction>();
     public List<IMoveable> moveablesNew = new List<IMoveable>();
+    public Player ActivePlayer { get { return activePlayer; } }
+    public GameObject lockingObject = null;
 
-    private Leveldata leveldata;
-
-    private bool inTransition = false;
-
-    //maybe convert to List<GameObject>[,] 
-    private Entity[,] entities;
-    private Entity[,] entitiesSimulation;
-
-    private GameObject[,] tileNumbers;
-    private GameObject[] players;
-    private Dictionary<EntityID, GameObject> tileObjects = new Dictionary<EntityID, GameObject>();
-    private Dictionary<string, GameObject> numberObjects = new Dictionary<string, GameObject>();
-
-    private Dictionary<int, Entity> entitiesDict = new Dictionary<int, Entity>();
-
-    private Player activePlayer;
-
-    private Levels levels;
-
-    //50 degrees, 8y, -7.5x
-    //private float camYOffset = 9.5f;
-    //private float camZOffset = -6.0f;
+    [SerializeField] private GameObject postProcessVolume;
+    [SerializeField] private GameObject baseTile;
+    [SerializeField] private GameObject wall;
+    [SerializeField] private new GameObject camera;
+    [SerializeField] private GameObject ConfettiEffect;
+    [SerializeField] private AnimationCurve cameraNudgeCurve;
+    [SerializeField] private AudioSource MoveSound;
+    [SerializeField] private AudioSource LevelCompleteSound;
+    [SerializeField] private AudioSource GoalEnabledSound;
+    [SerializeField] public AudioSource PressurePlateSound;
     [SerializeField] float camYOffset = 3.5f;
     [SerializeField] float camZOffset = 3.5f;
     [SerializeField] float camXOffset = 3.5f;
-    //each level can have a specific camera offset, hacky but good enough for a gamejam game
+    [SerializeField] private TextMeshProUGUI levelNameText;
+    [SerializeField] public TextMeshProUGUI diedHintText;
+    
+    private const float numberYOffset = 0.53f;
+    private const float cameraDefaultSize = 5.0f;
+
+    private bool inTransition = false;
+    private bool[,] meshVisited;
+    private bool cameraNudgeEnabled = false;
+    private bool transitionStarted = false; 
+    private Dictionary<EntityID, GameObject> tileObjects = new Dictionary<EntityID, GameObject>();
+    private Dictionary<string, GameObject> numberObjects = new Dictionary<string, GameObject>();
+    private Dictionary<int, Entity> entitiesDict = new Dictionary<int, Entity>(); private Leveldata leveldata;
+    private Entity[,] entities;
+    private Entity[,] entitiesSimulation;
+    private float levelBlockHeight = -24.5f;
     private float cameraLevelOffset = 0.0f;
-
     private float levelTransitionDuration = 2.0f;
-
-    private Quaternion cameraStartQuaternion;
     private float cameraNudgeAngle = 1.0f;
-
-    private int identifierIndex = 1;
-
-    private List<int> movedIdentifiers = new List<int>();
-
-    private List<PressurePlate> pressurePlates = new List<PressurePlate>();
-
+    private GameObject[,] tileNumbers;
+    private GameObject[] players;
     private GameObject goalObject;
     private GameObject goalObjectNumber;
-
-    private bool transitionStarted = false;
-
-    public Player ActivePlayer { get { return activePlayer; } }
-
-    public GameObject lockingObject = null;
-
     private int tickNumber = 0;
-
-    public Dictionary<int, Transaction> transactions = new Dictionary<int, Transaction>();
-
-    private bool cameraNudgeEnabled = false;
-    private float levelBlockHeight = -24.5f;
-
-    //CombineMeshes 
-    bool[,] meshVisited;
-
-    [SerializeField] GameObject postProcessVolume;
-
-    //the model I have is clockwise probably https://en.wikipedia.org/wiki/Dice#Construction
+    private int identifierIndex = 1;
+    private Levels levels;
+    private List<int> movedIdentifiers = new List<int>();
+    private List<PressurePlate> pressurePlates = new List<PressurePlate>();
+    private Player activePlayer;
+    //each level can have a specific camera offset if wanted
+    private Quaternion cameraStartQuaternion;
+    
+    //the model I have is clockwise https://en.wikipedia.org/wiki/Dice#Construction
 
     // Start is called before the first frame update
     void Awake()
@@ -178,11 +146,10 @@ public class Game : MonoBehaviour
 
         levels = new Levels();
         levels.Init();
-        LoadLevel(Manager.currentLevel);
 
-        //set camera position
-        //var levelCenter = (leveldata.width / 2.0f, leveldata.height / 2.0f);
+        LoadLevel(Manager.currentLevel);
         SetCameraPosition();
+
         cameraStartQuaternion = camera.transform.rotation;
         ConfettiEffect.transform.position = new Vector3(camera.transform.position.x, camera.transform.position.y, camera.transform.position.z + 5.0f);
         levelNameText.text = "- " + leveldata.name + " -";
@@ -223,8 +190,7 @@ public class Game : MonoBehaviour
         BuildLevelTiles(parent);
 
         CombineMeshes();
-        //build walls
-        //BuildWalls(parent);
+
         if(leveldata.cameraSize != 0)
         {
             camera.GetComponent<Camera>().orthographicSize = leveldata.cameraSize;
@@ -474,29 +440,8 @@ public class Game : MonoBehaviour
     }
     #endregion [---MeshCombine---]
 
-    private void BuildWalls(GameObject parent)
-    {
-        for(int x = -1; x <= leveldata.width; x++)
-        {
-            var obj = Instantiate(wall);
-            obj.transform.position = new Vector3(x, 0.5f, leveldata.height);
-            obj.transform.parent = parent.transform;
-        }
-        for(int y = 0; y < leveldata.height; y++)
-        {
-            var obj1 = Instantiate(wall);
-            var obj2 = Instantiate(wall);
-
-            obj1.transform.position = new Vector3(-1, 0.5f, y);
-            obj1.transform.parent = parent.transform;
-
-            obj2.transform.position = new Vector3(leveldata.width, 0.5f, y);
-            obj2.transform.parent = parent.transform;
-        }
-    }
     #endregion [===LoadLevel===]
 
-    // Update is called once per frame
     void Update()
     {
         activePlayer.indicatorsActive = Input.GetKey(KeyCode.Space);
@@ -542,15 +487,6 @@ public class Game : MonoBehaviour
 
     private IEnumerator Undo()
     {
-        //var gs = moves.Pop();
-        //if(gs.died)
-        //{
-        //    this.activePlayer.Dead = false;
-        //    diedHintText.gameObject.SetActive(false);
-        //}
-        //goalObject.SetActive(moves.Peek().goalActive);
-        //goalObjectNumber.SetActive(moves.Peek().goalActive);
-        //move
         lockingObject = this.gameObject;
         UndoEvent.Invoke();
 
@@ -562,13 +498,6 @@ public class Game : MonoBehaviour
         lockingObject = null;
 
         UpdateEntityArray();
-        //spamming undo error
-
-        //var offset = (moves.Peek().position.Item1 - gs.position.Item1, moves.Peek().position.Item2 - gs.position.Item2);
-        //var dir = Dir.dirTuple[offset];
-        //SimulateMovement(dir, true); //hopefully works right
-        //transitionDuration = undoDuration;
-        //StartCoroutine(Transition(dir, true));
     }
 
     private void UpdateEntityArray()
@@ -597,7 +526,6 @@ public class Game : MonoBehaviour
             {
                 m.LerpMove();
             }
-            //camera.transform.rotation = Quaternion.Lerp(cameraNudgedRotation, cameraStartQuaternion, cameraNudgeCurve.Evaluate(tickTimer / transitionDuration));
             yield return null;
         }
         tickTimer = 0.0f;
@@ -768,7 +696,6 @@ public class Game : MonoBehaviour
     {
         tickTimer = 0.0f;
         inTransition = true;
-        //float y = curTile == null ? 1 : 1 + curTile.GetComponent<Tile>().VerticalOffset; //unused
 
         Quaternion cameraNudgedRotation = cameraStartQuaternion;
 
@@ -827,10 +754,8 @@ public class Game : MonoBehaviour
         }
 
         tickNumber++;
-        //todo fix?
         inTransition = false;
         LateTickEvent.Invoke(activePlayer.Face);
-        //camera.transform.rotation = cameraStartQuaternion;
     }
 
     //enable goal if all on and play sound
@@ -879,7 +804,7 @@ public class Game : MonoBehaviour
     }
 
     //returns true if collision or OOB, else false
-    //Warning: does work with lazers (holes return collision as true, but a lazer sho uld not hit it)
+    //Warning: does work with lazers (holes return collision as true, but a lazer should not hit it)
     //in reality collision / walkable should be two separate properties
     private bool CheckCollision((int, int) pos, ref Entity[,] dataSource)
     {
@@ -1084,7 +1009,5 @@ public class Game : MonoBehaviour
             }
             SceneManager.LoadScene(sceneIndex, LoadSceneMode.Single);
         }
-        
     }
-
 }

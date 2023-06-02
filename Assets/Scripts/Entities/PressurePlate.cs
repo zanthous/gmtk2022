@@ -10,8 +10,6 @@ public class PressurePlate : Tile
         public bool previousValue;
     }
 
-    //private bool disableGoal = true;
-
     public bool levelDieOnly = true;
 
     private bool previousValue = false;
@@ -26,10 +24,8 @@ public class PressurePlate : Tile
         AddCurrentState();
     }
 
-    //todo instead of assuming leveldie, should check for an interface (die type, or at least hasface) and check its face
     public override void Tick(int dieFace, Direction direction)
     {
-        //need access to moveable
         var moveables = game.moveablesNew;
         if(levelDieOnly)
         {

@@ -2,9 +2,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+
+//Didn't use a level editor for the gamejam, just wrote the levels out for speed
 public class Levels 
 {
-
     private Leveldata[] levels;
 
     public int LevelCount { get { return levels.Length; } }
@@ -74,7 +75,7 @@ public class Levels
         levels[8].width = 5;
         levels[8].height = 6;
 
-        levels[9].name = "Happy 3rd anniversary Pekora!!";
+        levels[9].name = "3rd Anniversary";
         levels[9].width = 7;
         levels[9].height = 7;
 
@@ -82,11 +83,10 @@ public class Levels
         levels[10].width = 8;
         levels[10].height = 8;
 
-        levels[11].name = "Farewell"; //Since leveldie are so spaced to start, it makes the puzzle easier
+        levels[11].name = "Farewell"; 
         levels[11].width = 9;
         levels[11].height = 9;
         levels[11].cameraSize = 6.0f;
-
 
         //fill blank tiles
         for(int i = 0; i < levels.Length; i++)

@@ -12,7 +12,6 @@ public class LazerTurret : Tile
 
     [SerializeField] private GameObject lazer;
 
-    //private Vector3 beamStartPosition;
     private (int, int) collisionLocation;
     private bool lazerActive = false;
     private Vector3 initialLazerLocalScale;
@@ -30,17 +29,17 @@ public class LazerTurret : Tile
     {
         initialLazerLocalScale = lazer.transform.localScale;
         initialLazerLocalPosition = lazer.transform.localPosition;
-        LazerStuff(game.ActivePlayer.Face);
+        TickLazer(game.ActivePlayer.Face);
         AddCurrentState();
     }
 
     //lazer will probably have to redraw on random ticks too
     public override void Tick(int dieFace, Direction direction)
     {
-        LazerStuff(dieFace);
+        TickLazer(dieFace);
     }
 
-    private void LazerStuff(int dieFace)
+    private void TickLazer(int dieFace)
     {
         lazerActive = DetermineFaceMatch(dieFace);
         if(lazerActive)
@@ -95,9 +94,8 @@ public class LazerTurret : Tile
     {
         var vectorToCollision = (Pos.Item1 - collisionLocation.Item1, Pos.Item2 - collisionLocation.Item2);
 
-        //one of them will always be 0 so just get the value stupidly
         float distance = Mathf.Abs(vectorToCollision.Item1 + vectorToCollision.Item2);
-        distance /= 2.0f; //cylinders of 0.5f units are 1.0f tall or something
+        distance /= 2.0f; //cylinders of 0.5f units are 1.0f tall 
         var targetLocalScale = new Vector3(lazer.transform.localScale.x, distance, lazer.transform.localScale.z);
         var targetLocalPosition = new Vector3(0, transform.localPosition.y - 1.0f, distance) + initialLazerLocalPosition;
 

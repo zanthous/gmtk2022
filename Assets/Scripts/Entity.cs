@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-//todo think of a name
 public abstract class Entity : MonoBehaviour
 {
     public EntityID entityID;
