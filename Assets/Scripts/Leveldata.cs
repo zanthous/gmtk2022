@@ -31,5 +31,4 @@ public struct Tiledata
         this.greater = greater;
         this.not = not;
     }
-
 }

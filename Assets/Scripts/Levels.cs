@@ -75,7 +75,7 @@ public class Levels
         levels[8].width = 5;
         levels[8].height = 6;
 
-        levels[9].name = "3rd Anniversary";
+        levels[9].name = "Anniversary";
         levels[9].width = 7;
         levels[9].height = 7;
 

@@ -13,7 +13,6 @@ public class Die
         get { return this.horizontal[1]; }
     }
 
-
     public Die()
     {
         vertical = new int[3] { 2, 1, 5 }; //front/face/behind

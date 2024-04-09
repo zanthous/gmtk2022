@@ -82,6 +82,7 @@ public static class Dir
         }
         return new Vector3();
     }
+
     /// <summary>
     /// https://docs.unity3d.com/Manual/BestPracticeUnderstandingPerformanceInUnity4-1.html
     /// Avoid boxing with custom comparer for enums

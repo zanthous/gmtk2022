@@ -13,7 +13,6 @@ public abstract class Entity : MonoBehaviour
     public bool collision = true;
     public int Identifier { get;set; }
 
-
     public (int,int) Pos
     {
         get;set;

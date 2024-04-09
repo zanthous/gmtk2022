@@ -136,7 +136,6 @@ public class Player : Entity, IMoveable, IHasDie
     {
         TickPosition = transform.position;
         TickRotation = transform.rotation;
-        //        if(game.transactions.ContainsKey(Identifier))
 
         var tx = game.transactions[Identifier];
         (int, int) newPos = tx.newPos;

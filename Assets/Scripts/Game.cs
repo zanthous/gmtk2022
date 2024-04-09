@@ -10,17 +10,17 @@ using UnityEngine.SceneManagement;
 
 public enum EntityID
 {
-    None                = 0b00000000_00000000_00000000_00000000,
-    empty               = 0b00000000_00000000_00000000_00000001,
-    goal                = 0b00000000_00000000_00000000_00000010,
-    spawn               = 0b00000000_00000000_00000000_00000100,
-    lazer               = 0b00000000_00000000_00000000_00001000,
-    block               = 0b00000000_00000000_00000000_00010000,
-    levelDie            = 0b00000000_00000000_00000000_00100000,
-    pressurePlate       = 0b00000000_00000000_00000000_01000000,
-    pressurePlatePlayer = 0b00000000_00000000_00000000_10000000,
-    player              = 0b00000000_00000000_00000001_00000000,
-    hole                = 0b00000000_00000000_00000010_00000000
+    None                = 0,
+    empty               = 1 << 0,
+    goal                = 1 << 1,
+    spawn               = 1 << 2,
+    lazer               = 1 << 3,
+    block               = 1 << 4,
+    levelDie            = 1 << 5,
+    pressurePlate       = 1 << 6,
+    pressurePlatePlayer = 1 << 7,
+    player              = 1 << 8,
+    hole                = 1 << 9
 }
 
 public struct GameState
@@ -112,7 +112,6 @@ public class Game : MonoBehaviour
     
     //the model I have is clockwise https://en.wikipedia.org/wiki/Dice#Construction
 
-    // Start is called before the first frame update
     void Awake()
     {
         LevelCompleteEvent += LevelComplete;
